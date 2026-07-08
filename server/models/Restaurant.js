@@ -13,6 +13,35 @@ const operatingHoursSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const restaurantDocumentSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: [
+        'fssai_license',
+        'business_registration',
+        'gst_certificate',
+        'pan_card',
+        'address_proof',
+        'bank_statement',
+      ],
+    },
+    url: { type: String },
+    status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+    uploadedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const adminNoteSchema = new mongoose.Schema(
+  {
+    note: { type: String, required: true },
+    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    addedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const restaurantSchema = new mongoose.Schema(
   {
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -55,6 +84,18 @@ const restaurantSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false },
     avgRating: { type: Number, default: 0, min: 0, max: 5 },
     totalRatings: { type: Number, default: 0 },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'active', 'suspended', 'rejected', 'expired'],
+      default: 'pending',
+    },
+    plan: { type: String, enum: ['trial', 'basic', 'standard', 'premium'], default: 'trial' },
+    submittedAt: { type: Date, default: Date.now },
+    reviewedAt: { type: Date },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    rejectionReason: { type: String },
+    documents: [restaurantDocumentSchema],
+    adminNotes: [adminNoteSchema],
   },
   { timestamps: true }
 );
@@ -62,5 +103,6 @@ const restaurantSchema = new mongoose.Schema(
 restaurantSchema.index({ location: '2dsphere' });
 restaurantSchema.index({ name: 'text', description: 'text' });
 restaurantSchema.index({ ownerId: 1 });
+restaurantSchema.index({ approvalStatus: 1 });
 
 export default mongoose.model('Restaurant', restaurantSchema);
