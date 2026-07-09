@@ -3,6 +3,7 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { authorizeRole } from '../../middleware/authorizeRole.js';
 import { sendSuccess } from '../../utils/ApiResponse.js';
 import storeRoutes from './store.routes.js';
+import customerRoutes from './customer.routes.js';
 
 const router = Router();
 
@@ -13,5 +14,6 @@ router.get('/ping', (req, res) =>
 );
 
 router.use('/stores', storeRoutes);
+router.use('/customers', customerRoutes);
 
 export default router;
