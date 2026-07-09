@@ -11,10 +11,10 @@ if (env.CLOUDINARY_URL) {
   });
 }
 
-export const uploadBuffer = ({ buffer, folder, publicId }) =>
+export const uploadBuffer = ({ buffer, folder, publicId, resourceType = 'image' }) =>
   new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder, public_id: publicId, resource_type: 'image' },
+      { folder, public_id: publicId, resource_type: resourceType },
       (error, result) => {
         if (error) reject(error);
         else resolve({ secureUrl: result.secure_url, publicId: result.public_id });
