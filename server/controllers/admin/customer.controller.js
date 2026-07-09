@@ -61,7 +61,7 @@ export const setStatus = asyncHandler(async (req, res) => {
   if (!customer) throw new ApiError(404, 'NOT_FOUND', 'Customer not found');
 
   await logActivity({
-    adminId: req.user.userId,
+    adminId: req.user._id,
     action: isActive ? 'CUSTOMER_ACTIVATED' : 'CUSTOMER_DEACTIVATED',
     targetType: 'user',
     targetId: customer._id,

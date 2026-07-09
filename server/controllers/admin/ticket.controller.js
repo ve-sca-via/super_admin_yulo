@@ -72,7 +72,7 @@ export const addMessage = asyncHandler(async (req, res) => {
   const ticket = await SupportTicket.findById(req.params.id);
   if (!ticket) throw new ApiError(404, 'NOT_FOUND', 'Ticket not found');
 
-  ticket.messages.push({ senderType: 'admin', sender: req.user.userId, text, sentAt: new Date() });
+  ticket.messages.push({ senderType: 'admin', sender: req.user._id, text, sentAt: new Date() });
   if (ticket.status === 'open') ticket.status = 'in_progress';
   await ticket.save();
 

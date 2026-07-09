@@ -4,10 +4,10 @@ import SupportTicket from '../models/SupportTicket.js';
 import Bill from '../models/Bill.js';
 import DeliveryPartner from '../models/DeliveryPartner.js';
 
-const STORE_STATUSES = ['pending', 'active', 'suspended', 'rejected', 'expired'];
+export const STORE_STATUSES = ['pending', 'active', 'suspended', 'rejected', 'expired'];
 const TICKET_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
 
-const shapeCounts = (statuses, aggResult) => {
+export const shapeCounts = (statuses, aggResult) => {
   const shaped = Object.fromEntries(statuses.map((status) => [status, 0]));
   aggResult.forEach(({ _id, count }) => {
     if (_id in shaped) shaped[_id] = count;

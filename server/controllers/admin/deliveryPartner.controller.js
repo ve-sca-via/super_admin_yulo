@@ -129,7 +129,7 @@ export const create = asyncHandler(async (req, res) => {
   }
 
   await logActivity({
-    adminId: req.user.userId,
+    adminId: req.user._id,
     action: 'DELIVERY_PARTNER_ADDED',
     targetType: 'delivery_partner',
     targetId: partner._id,
@@ -154,7 +154,7 @@ export const remove = asyncHandler(async (req, res) => {
   if (!partner) throw new ApiError(404, 'NOT_FOUND', 'Delivery partner not found');
 
   await logActivity({
-    adminId: req.user.userId,
+    adminId: req.user._id,
     action: 'DELIVERY_PARTNER_REMOVED',
     targetType: 'delivery_partner',
     targetId: partner._id,

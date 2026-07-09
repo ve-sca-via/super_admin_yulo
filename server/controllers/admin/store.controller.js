@@ -4,6 +4,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { sendSuccess } from '../../utils/ApiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { logActivity } from '../../services/activityLog.service.js';
+import { STORE_STATUSES, shapeCounts } from '../../services/adminStats.service.js';
 
 const UPDATABLE_FIELDS = ['name', 'description', 'cuisineTypes', 'address', 'delivery', 'settings', 'plan'];
 
@@ -15,7 +16,7 @@ export const list = asyncHandler(async (req, res) => {
   if (search) filter.name = { $regex: search, $options: 'i' };
 
   const skip = (Number(page) - 1) * Number(limit);
-  const [stores, total, statusCounts] = await Promise.all([
+  const [stores, total, statusCountsAgg] = await Promise.all([
     Restaurant.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -31,7 +32,7 @@ export const list = asyncHandler(async (req, res) => {
     total,
     page: Number(page),
     pages: Math.ceil(total / Number(limit)),
-    statusCounts,
+    statusCounts: shapeCounts(STORE_STATUSES, statusCountsAgg),
   });
 });
 
@@ -44,13 +45,13 @@ export const getOne = asyncHandler(async (req, res) => {
 export const approve = asyncHandler(async (req, res) => {
   const store = await Restaurant.findByIdAndUpdate(
     req.params.id,
-    { $set: { approvalStatus: 'active', reviewedAt: new Date(), reviewedBy: req.user.userId } },
+    { $set: { approvalStatus: 'active', reviewedAt: new Date(), reviewedBy: req.user._id } },
     { new: true }
   );
   if (!store) throw new ApiError(404, 'NOT_FOUND', 'Store not found');
 
   await logActivity({
-    adminId: req.user.userId,
+    adminId: req.user._id,
     action: 'STORE_APPROVED',
     targetType: 'restaurant',
     targetId: store._id,
@@ -75,7 +76,7 @@ export const reject = asyncHandler(async (req, res) => {
         approvalStatus: 'rejected',
         rejectionReason: reason,
         reviewedAt: new Date(),
-        reviewedBy: req.user.userId,
+        reviewedBy: req.user._id,
       },
     },
     { new: true }
@@ -83,7 +84,7 @@ export const reject = asyncHandler(async (req, res) => {
   if (!store) throw new ApiError(404, 'NOT_FOUND', 'Store not found');
 
   await logActivity({
-    adminId: req.user.userId,
+    adminId: req.user._id,
     action: 'STORE_REJECTED',
     targetType: 'restaurant',
     targetId: store._id,
@@ -103,7 +104,7 @@ export const suspend = asyncHandler(async (req, res) => {
   await store.save();
 
   await logActivity({
-    adminId: req.user.userId,
+    adminId: req.user._id,
     action: 'STORE_SUSPENDED',
     targetType: 'restaurant',
     targetId: store._id,
@@ -122,7 +123,7 @@ export const reactivate = asyncHandler(async (req, res) => {
   await store.save();
 
   await logActivity({
-    adminId: req.user.userId,
+    adminId: req.user._id,
     action: 'STORE_REACTIVATED',
     targetType: 'restaurant',
     targetId: store._id,
@@ -153,13 +154,13 @@ export const addNote = asyncHandler(async (req, res) => {
 
   const store = await Restaurant.findByIdAndUpdate(
     req.params.id,
-    { $push: { adminNotes: { note, addedBy: req.user.userId, addedAt: new Date() } } },
+    { $push: { adminNotes: { note, addedBy: req.user._id, addedAt: new Date() } } },
     { new: true }
   );
   if (!store) throw new ApiError(404, 'NOT_FOUND', 'Store not found');
 
   await logActivity({
-    adminId: req.user.userId,
+    adminId: req.user._id,
     action: 'STORE_NOTE_ADDED',
     targetType: 'restaurant',
     targetId: store._id,
@@ -196,7 +197,7 @@ export const remove = asyncHandler(async (req, res) => {
   if (!store) throw new ApiError(404, 'NOT_FOUND', 'Store not found');
 
   await logActivity({
-    adminId: req.user.userId,
+    adminId: req.user._id,
     action: 'STORE_REMOVED',
     targetType: 'restaurant',
     targetId: store._id,
