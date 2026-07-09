@@ -3,6 +3,7 @@ import Restaurant from '../../models/Restaurant.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { sendSuccess } from '../../utils/ApiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { logActivity } from '../../services/activityLog.service.js';
 
 const UPDATABLE_FIELDS = ['name', 'description', 'cuisineTypes', 'address', 'delivery', 'settings', 'plan'];
 
@@ -47,6 +48,14 @@ export const approve = asyncHandler(async (req, res) => {
     { new: true }
   );
   if (!store) throw new ApiError(404, 'NOT_FOUND', 'Store not found');
+
+  await logActivity({
+    adminId: req.user.userId,
+    action: 'STORE_APPROVED',
+    targetType: 'restaurant',
+    targetId: store._id,
+  });
+
   sendSuccess(res, 200, 'Store approved', { store });
 });
 
@@ -72,6 +81,15 @@ export const reject = asyncHandler(async (req, res) => {
     { new: true }
   );
   if (!store) throw new ApiError(404, 'NOT_FOUND', 'Store not found');
+
+  await logActivity({
+    adminId: req.user.userId,
+    action: 'STORE_REJECTED',
+    targetType: 'restaurant',
+    targetId: store._id,
+    metadata: { reason },
+  });
+
   sendSuccess(res, 200, 'Store rejected', { store });
 });
 
@@ -83,6 +101,14 @@ export const suspend = asyncHandler(async (req, res) => {
   }
   store.approvalStatus = 'suspended';
   await store.save();
+
+  await logActivity({
+    adminId: req.user.userId,
+    action: 'STORE_SUSPENDED',
+    targetType: 'restaurant',
+    targetId: store._id,
+  });
+
   sendSuccess(res, 200, 'Store suspended', { store });
 });
 
@@ -94,6 +120,14 @@ export const reactivate = asyncHandler(async (req, res) => {
   }
   store.approvalStatus = 'active';
   await store.save();
+
+  await logActivity({
+    adminId: req.user.userId,
+    action: 'STORE_REACTIVATED',
+    targetType: 'restaurant',
+    targetId: store._id,
+  });
+
   sendSuccess(res, 200, 'Store reactivated', { store });
 });
 
@@ -123,6 +157,14 @@ export const addNote = asyncHandler(async (req, res) => {
     { new: true }
   );
   if (!store) throw new ApiError(404, 'NOT_FOUND', 'Store not found');
+
+  await logActivity({
+    adminId: req.user.userId,
+    action: 'STORE_NOTE_ADDED',
+    targetType: 'restaurant',
+    targetId: store._id,
+  });
+
   sendSuccess(res, 200, 'Note added', { store });
 });
 
@@ -152,5 +194,13 @@ export const remove = asyncHandler(async (req, res) => {
     { new: true }
   );
   if (!store) throw new ApiError(404, 'NOT_FOUND', 'Store not found');
+
+  await logActivity({
+    adminId: req.user.userId,
+    action: 'STORE_REMOVED',
+    targetType: 'restaurant',
+    targetId: store._id,
+  });
+
   sendSuccess(res, 200, 'Store deactivated', { store });
 });
