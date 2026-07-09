@@ -29,8 +29,7 @@ const restaurantDocumentSchema = new mongoose.Schema(
     url: { type: String },
     status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
     uploadedAt: { type: Date, default: Date.now },
-  },
-  { _id: false }
+  }
 );
 
 const adminNoteSchema = new mongoose.Schema(

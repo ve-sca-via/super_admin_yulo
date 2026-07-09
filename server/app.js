@@ -14,6 +14,7 @@ import orderRoutes from './routes/order.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import ownerRouter from './routes/owner/index.js';
 import staffRouter from './routes/staff/index.js';
+import adminRouter from './routes/admin/index.js';
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/owner', ownerRouter);
+app.use('/api/admin', adminRouter);
 app.use('/api/staff', staffRouter);
 
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
