@@ -27,10 +27,11 @@ Frontend integration guide for all REST endpoints and WebSocket events.
 19. [Owner — Loyalty Program](#owner--loyalty-program)
 20. [Owner — Dashboard](#owner--dashboard)
 21. [Owner — Live Monitor](#owner--live-monitor)
-22. [Staff — Authentication](#staff--authentication)
-23. [Waiter — Tables & Orders](#waiter--tables--orders)
-24. [Kitchen — KDS](#kitchen--kds)
-25. [WebSocket Events](#websocket-events)
+22. [Admin](#admin)
+23. [Staff — Authentication](#staff--authentication)
+24. [Waiter — Tables & Orders](#waiter--tables--orders)
+25. [Kitchen — KDS](#kitchen--kds)
+26. [WebSocket Events](#websocket-events)
 
 ---
 
@@ -138,6 +139,7 @@ The `restaurantId` in the URL must match the staff member's assigned restaurant,
 | 401 | `TOKEN_EXPIRED` | Access token has expired — call `/auth/refresh` |
 | 401 | `INVALID_CREDENTIALS` | Wrong email/password or wrong PIN |
 | 403 | `FORBIDDEN` | Authenticated but not permitted for this action |
+| 400 | `INVALID_STATE` | Admin store transition not allowed from its current `approvalStatus` (e.g. suspending a non-active store) |
 | 404 | `NOT_FOUND` | Resource does not exist |
 | 409 | `CONCURRENT_UPDATE` | Kitchen status was changed by another request — retry with the new `currentStatus` |
 | 409 | `DUPLICATE` | Unique constraint violated (e.g. duplicate discount code) |
@@ -2123,6 +2125,594 @@ Same body schema as `POST /api/owner/:restaurantId/discounts`.
 ```
 
 The offer is emitted as a `targeted_offer` Socket.IO event to the `restaurant:<restaurantId>` room.
+
+---
+
+## Admin
+
+All admin routes require `Authorization: Bearer <accessToken>` with role `admin`, and live under `/api/admin`. Any other role gets `403 FORBIDDEN`. Every state-changing action is recorded in an internal activity log (`adminId`, `action`, `targetType`, `targetId`, `metadata`) — not exposed via its own endpoint yet.
+
+Every list endpoint below (`stores`, `customers`, `delivery-partners`, `tickets`) shares the same pagination shape — `?page=&limit=` in, `{ ..., total, page, pages }` out — so a single `usePaginatedQuery` hook can drive all four admin tables.
+
+### Quick Reference
+
+| Method | Path | Body | Description |
+|--------|------|------|--------------|
+| `GET` | `/api/admin/dashboard` | — | [Platform KPI totals](#platform-overview) |
+| `GET` | `/api/admin/dashboard/revenue-overview?range=` | — | [Revenue chart points](#revenue-overview) |
+| `GET` | `/api/admin/reports/top-stores?limit=` | — | [Top stores by revenue](#top-stores) |
+| `GET` | `/api/admin/reports/top-delivery-partners?limit=` | — | [Top delivery partners by deliveries](#top-delivery-partners) |
+| `GET` | `/api/admin/stores?status=&plan=&search=&page=&limit=` | — | [List stores + tab counts](#list-stores) |
+| `GET` | `/api/admin/stores/:id` | — | [Get one store](#get-store) |
+| `PATCH` | `/api/admin/stores/:id/approve` | none | [Approve → `active`](#approve-store) |
+| `PATCH` | `/api/admin/stores/:id/reject` | `{ reason }` | [Reject → `rejected`](#reject-store) |
+| `PATCH` | `/api/admin/stores/:id/suspend` | none | [Suspend → `suspended` (from `active` only)](#suspend-store) |
+| `PATCH` | `/api/admin/stores/:id/reactivate` | none | [Reactivate → `active` (from `suspended` only)](#reactivate-store) |
+| `PATCH` | `/api/admin/stores/:id` | whitelisted fields | [Update store profile](#update-store) |
+| `POST` | `/api/admin/stores/:id/notes` | `{ note }` | [Add internal note](#add-admin-note) |
+| `PATCH` | `/api/admin/stores/:id/documents/:docId` | `{ status }` | [Verify/reject a document](#verify-document) |
+| `DELETE` | `/api/admin/stores/:id` | — | [Soft-remove store](#remove-store) |
+| `GET` | `/api/admin/customers?search=&status=&page=&limit=` | — | [List customers](#list-customers) |
+| `GET` | `/api/admin/customers/:id` | — | [Get one customer](#get-customer) |
+| `PATCH` | `/api/admin/customers/:id/status` | `{ isActive }` | [Activate/deactivate customer](#set-customer-status) |
+| `GET` | `/api/admin/delivery-partners?search=&status=&page=&limit=` | — | [List delivery partners](#list-delivery-partners) |
+| `POST` | `/api/admin/delivery-partners` | `multipart/form-data` | [Onboard delivery partner + documents](#create-delivery-partner) |
+| `GET` | `/api/admin/delivery-partners/:id` | — | [Get one delivery partner](#get-delivery-partner) |
+| `PATCH` | `/api/admin/delivery-partners/:id` | whitelisted fields | [Update delivery partner](#update-delivery-partner) |
+| `DELETE` | `/api/admin/delivery-partners/:id` | — | [Hard-remove delivery partner](#remove-delivery-partner) |
+| `GET` | `/api/admin/tickets?status=&priority=&category=&page=&limit=` | — | [List support tickets](#list-tickets) |
+| `GET` | `/api/admin/tickets/:id` | — | [Get one ticket](#get-ticket) |
+| `PATCH` | `/api/admin/tickets/:id` | `{ status?, priority?, assignedTo? }` | [Update ticket](#update-ticket) |
+| `POST` | `/api/admin/tickets/:id/messages` | `{ text }` | [Reply to ticket](#add-message) |
+
+---
+
+### Admin — Stores
+
+Base path: `/api/admin/stores`
+
+#### List Stores
+
+```
+GET /api/admin/stores
+```
+
+**Query parameters**
+
+| Param | Type | Notes |
+|-------|------|-------|
+| `status` | `"pending"` \| `"active"` \| `"suspended"` \| `"rejected"` \| `"expired"` | Filters by `approvalStatus` |
+| `plan` | `"trial"` \| `"basic"` \| `"standard"` \| `"premium"` | |
+| `search` | string | Case-insensitive match on `name` |
+| `page` | number | Default 1 |
+| `limit` | number | Default 20 |
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "Stores",
+  "data": {
+    "stores": [ { "_id": "664abc...", "name": "Spice Garden", "approvalStatus": "pending", "plan": "trial", "ownerId": { "_id": "664u...", "name": "Amir", "email": "amir@x.com", "phone": "+91..." } } ],
+    "total": 42,
+    "page": 1,
+    "pages": 3,
+    "statusCounts": { "pending": 5, "active": 30, "suspended": 2, "rejected": 3, "expired": 2 }
+  }
+}
+```
+
+`statusCounts` powers the All / Pending / Active / Suspended / Expired / Rejected tab counts and is computed over the full collection, independent of `status`/`plan`/`search` filters.
+
+---
+
+#### Get Store
+
+```
+GET /api/admin/stores/:id
+```
+
+Populates `ownerId` with `name email phone`. `404 NOT_FOUND` if the store doesn't exist.
+
+**Response `200`** — `data: { store }`
+
+---
+
+#### Approve Store
+
+```
+PATCH /api/admin/stores/:id/approve
+```
+
+**Body** — none
+
+Sets `approvalStatus: 'active'`, `reviewedAt: now`, `reviewedBy: <adminId>`. Logs `STORE_APPROVED`.
+
+**Response `200`** — `data: { store }`
+
+---
+
+#### Reject Store
+
+```
+PATCH /api/admin/stores/:id/reject
+```
+
+**Body**
+
+```json
+{ "reason": "Uploaded FSSAI license has expired" }
+```
+
+| Field | Type | Required |
+|-------|------|----------|
+| `reason` | string | Yes, min 1 char |
+
+Sets `approvalStatus: 'rejected'`, `rejectionReason`, `reviewedAt`, `reviewedBy`. Logs `STORE_REJECTED` with `metadata: { reason }`.
+
+**Response `200`** — `data: { store }`
+
+---
+
+#### Suspend Store
+
+```
+PATCH /api/admin/stores/:id/suspend
+```
+
+**Body** — none
+
+Only allowed from `approvalStatus: 'active'` — otherwise `400 INVALID_STATE`. Logs `STORE_SUSPENDED`.
+
+**Response `200`** — `data: { store }`
+
+---
+
+#### Reactivate Store
+
+```
+PATCH /api/admin/stores/:id/reactivate
+```
+
+**Body** — none
+
+Only allowed from `approvalStatus: 'suspended'` — otherwise `400 INVALID_STATE`. Logs `STORE_REACTIVATED`.
+
+**Response `200`** — `data: { store }`
+
+---
+
+#### Update Store
+
+```
+PATCH /api/admin/stores/:id
+```
+
+**Body** — any subset of a fixed whitelist; any other field is silently dropped
+
+| Field | Notes |
+|-------|-------|
+| `name` | |
+| `description` | |
+| `cuisineTypes` | |
+| `address` | |
+| `delivery` | |
+| `settings` | |
+| `plan` | |
+
+**Response `200`** — `data: { store }`
+
+---
+
+#### Add Admin Note
+
+```
+POST /api/admin/stores/:id/notes
+```
+
+**Body**
+
+```json
+{ "note": "Owner confirmed correct GST number over phone" }
+```
+
+Pushes `{ note, addedBy: <adminId>, addedAt: now }` onto `adminNotes`. Logs `STORE_NOTE_ADDED`.
+
+**Response `200`** — `data: { store }`
+
+---
+
+#### Verify Document
+
+```
+PATCH /api/admin/stores/:id/documents/:docId
+```
+
+**Body**
+
+```json
+{ "status": "verified" }
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `status` | `"verified"` \| `"rejected"` | |
+
+Updates the matching entry inside the store's `documents` array in place. `404 NOT_FOUND` if the store or the document id doesn't match.
+
+**Response `200`** — `data: null`
+
+---
+
+#### Remove Store
+
+```
+DELETE /api/admin/stores/:id
+```
+
+Soft-delete only — sets `isActive: false`; `approvalStatus` is left unchanged. Order/bill history referencing this `restaurantId` is preserved. Logs `STORE_REMOVED`.
+
+**Response `200`** — `data: { store }`
+
+---
+
+### Admin — Customers
+
+Base path: `/api/admin/customers`
+
+#### List Customers
+
+```
+GET /api/admin/customers
+```
+
+**Query parameters**
+
+| Param | Type | Notes |
+|-------|------|-------|
+| `search` | string | Matches `name`, `email`, or `phone` |
+| `status` | `"active"` \| `"inactive"` | Maps to `isActive` |
+| `page` | number | Default 1 |
+| `limit` | number | Default 20 |
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "Customers",
+  "data": {
+    "customers": [ { "_id": "664u...", "name": "Priya S", "email": "priya@x.com", "phone": "+91...", "isActive": true } ],
+    "total": 500,
+    "page": 1,
+    "pages": 25
+  }
+}
+```
+
+`passwordHash` is explicitly excluded via `.select('-passwordHash')` (results are `.lean()`, which bypasses the schema's `toJSON` stripping).
+
+---
+
+#### Get Customer
+
+```
+GET /api/admin/customers/:id
+```
+
+`404 NOT_FOUND` if no customer (i.e. `role: 'customer'`) matches.
+
+**Response `200`** — `data: { customer }`
+
+---
+
+#### Set Customer Status
+
+```
+PATCH /api/admin/customers/:id/status
+```
+
+**Body**
+
+```json
+{ "isActive": false }
+```
+
+Logs `CUSTOMER_ACTIVATED` or `CUSTOMER_DEACTIVATED` depending on the value.
+
+**Response `200`** — `data: { customer }`
+
+---
+
+### Admin — Delivery Partners
+
+Base path: `/api/admin/delivery-partners`
+
+#### List Delivery Partners
+
+```
+GET /api/admin/delivery-partners
+```
+
+**Query parameters**
+
+| Param | Type | Notes |
+|-------|------|-------|
+| `search` | string | Matches `fullName`, `email`, or `phone` |
+| `status` | `"active"` \| `"busy"` \| `"inactive"` \| `"suspended"` | |
+| `page` | number | Default 1 |
+| `limit` | number | Default 20 |
+
+**Response `200`** — `data: { partners, total, page, pages }`
+
+---
+
+#### Get Delivery Partner
+
+```
+GET /api/admin/delivery-partners/:id
+```
+
+**Response `200`** — `data: { partner }`
+
+---
+
+#### Create Delivery Partner
+
+```
+POST /api/admin/delivery-partners
+```
+
+**Content-Type:** `multipart/form-data`
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `fullName`, `email`, `phone` | string | |
+| `dateOfBirth` | date string | |
+| `gender` | `"male"` \| `"female"` \| `"other"` | |
+| `emergencyPhone`, `aadharNumber`, `panNumber` | string | |
+| `vehicleModel`, `vehicleNumber`, `vehicleRcNumber`, `insuranceProvider`, `insuranceNumber` | string | |
+| `vehicleType` | `"2_wheeler"` \| `"ev_2_wheeler"` \| `"non_rto_2_wheeler"` | |
+| `insuranceValidTill` | date string | |
+| `bankName`, `accountHolderName`, `accountNumber`, `ifscCode`, `branchName`, `upiId` | string | |
+| `accountType` | `"savings"` \| `"current"` | |
+| `aadharCard` | file | Optional, max 5 MB, JPEG/PNG/WebP/PDF |
+| `drivingLicense` | file | Optional, same limits |
+| `vehicleRc` | file | Optional, same limits |
+| `insuranceDocument` | file | Optional, same limits |
+| `profilePhoto` | file | Optional, same limits |
+
+Each uploaded file is stored in Cloudinary under `yulostores/delivery-partners/<timestamp>` (PDFs use `resource_type: 'auto'`, images use `'image'`) and recorded in the partner's `documents` array with the matching type (`aadhar_card`, `driving_license`, `vehicle_rc`, `insurance_document`, `profile_photo`). If any upload fails partway through, the files already uploaded for this request are deleted from Cloudinary and the request fails with `500 UPLOAD_FAILED`. Logs `DELIVERY_PARTNER_ADDED`.
+
+**Response `201`** — `data: { partner }`
+
+---
+
+#### Update Delivery Partner
+
+```
+PATCH /api/admin/delivery-partners/:id
+```
+
+**Body** — any subset of a fixed whitelist
+
+| Field |
+|-------|
+| `fullName`, `phone`, `dateOfBirth`, `gender`, `emergencyPhone`, `aadharNumber`, `panNumber`, `vehicle`, `bankDetails`, `status` |
+
+**Response `200`** — `data: { partner }`
+
+---
+
+#### Remove Delivery Partner
+
+```
+DELETE /api/admin/delivery-partners/:id
+```
+
+Hard delete — no other collection references `DeliveryPartner` yet. Logs `DELIVERY_PARTNER_REMOVED` before deleting.
+
+**Response `200`** — `data: null`
+
+---
+
+### Admin — Support Tickets
+
+Base path: `/api/admin/tickets`
+
+#### List Tickets
+
+```
+GET /api/admin/tickets
+```
+
+**Query parameters**
+
+| Param | Type |
+|-------|------|
+| `status` | `"open"` \| `"in_progress"` \| `"resolved"` \| `"closed"` |
+| `priority` | `"low"` \| `"medium"` \| `"high"` |
+| `category` | `"billing"` \| `"technical"` \| `"account"` \| `"delivery"` \| `"other"` |
+| `page` / `limit` | number |
+
+Populates `assignedTo` with `name email`.
+
+**Response `200`** — `data: { tickets, total, page, pages }`
+
+---
+
+#### Get Ticket
+
+```
+GET /api/admin/tickets/:id
+```
+
+**Response `200`** — `data: { ticket }`
+
+---
+
+#### Update Ticket
+
+```
+PATCH /api/admin/tickets/:id
+```
+
+**Body** — any subset
+
+```json
+{
+  "status": "resolved",
+  "priority": "high",
+  "assignedTo": "664admin..."
+}
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `status` | `"open"` \| `"in_progress"` \| `"resolved"` \| `"closed"` | No |
+| `priority` | `"low"` \| `"medium"` \| `"high"` | No |
+| `assignedTo` | ObjectId string | No |
+
+When `status` is set to `"resolved"` or `"closed"`, `resolvedAt` is set automatically.
+
+**Response `200`** — `data: { ticket }`
+
+---
+
+#### Add Message
+
+```
+POST /api/admin/tickets/:id/messages
+```
+
+**Body**
+
+```json
+{ "text": "We've forwarded this to billing, you'll hear back within 24h." }
+```
+
+Pushes `{ senderType: 'admin', sender: <adminId>, text, sentAt: now }` onto `messages`. If the ticket's `status` is `"open"`, it automatically flips to `"in_progress"`.
+
+**Response `200`** — `data: { ticket }`
+
+---
+
+### Admin — Dashboard
+
+Base path: `/api/admin/dashboard`
+
+#### Platform Overview
+
+```
+GET /api/admin/dashboard
+```
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "Platform overview",
+  "data": {
+    "stores": { "pending": 5, "active": 30, "suspended": 2, "rejected": 3, "expired": 2 },
+    "customers": 500,
+    "tickets": { "open": 12, "in_progress": 4, "resolved": 40, "closed": 55 },
+    "revenue": { "total": 184500.5, "orders": 620 }
+  }
+}
+```
+
+`revenue` is computed over all `Bill` documents with `status: 'paid'`.
+
+---
+
+#### Revenue Overview
+
+```
+GET /api/admin/dashboard/revenue-overview
+```
+
+**Query parameters**
+
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| `range` | `"day"` \| `"week"` \| `"month"` \| `"year"` | `"month"` | Bucket granularity + lookback window |
+
+| `range` | Bucketed by | Lookback |
+|---------|-------------|----------|
+| `day` | hour | last 24 hours |
+| `week` | day | last 7 days |
+| `month` | day | last 30 days |
+| `year` | month | last 12 months |
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "Revenue overview",
+  "data": {
+    "range": "month",
+    "points": [
+      { "date": "2026-06-10T00:00:00.000Z", "revenue": 4200, "orders": 18 },
+      { "date": "2026-06-11T00:00:00.000Z", "revenue": 3900, "orders": 15 }
+    ]
+  }
+}
+```
+
+---
+
+### Admin — Reports
+
+Base path: `/api/admin/reports`
+
+#### Top Stores
+
+```
+GET /api/admin/reports/top-stores
+```
+
+**Query parameters**
+
+| Param | Type | Default |
+|-------|------|---------|
+| `limit` | number | 10 |
+
+Aggregates paid `Bill`s grouped by `restaurantId`, sorted by revenue descending, joined against `restaurants` for `name`/`avgRating`.
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "Top stores",
+  "data": {
+    "stores": [
+      { "restaurantId": "664abc...", "revenue": 92000, "orders": 340, "name": "Spice Garden", "avgRating": 4.3 }
+    ]
+  }
+}
+```
+
+---
+
+#### Top Delivery Partners
+
+```
+GET /api/admin/reports/top-delivery-partners
+```
+
+**Query parameters**
+
+| Param | Type | Default |
+|-------|------|---------|
+| `limit` | number | 10 |
+
+Sorted by `totalDeliveries` descending.
+
+**Response `200`** — `data: { partners }`
 
 ---
 
