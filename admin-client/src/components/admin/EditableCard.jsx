@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export default function EditableCard({
   title,
+  icon: Icon,
   editing,
   onEdit,
   onCancel,
@@ -11,11 +12,15 @@ export default function EditableCard({
   saving,
   children,
   editChildren,
+  contentClassName,
 }) {
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-        <h2 className="text-base font-bold">{title}</h2>
+        <h2 className="flex items-center gap-2 text-base font-bold">
+          {Icon ? <Icon className="h-4 w-4 text-brand-orange" /> : null}
+          {title}
+        </h2>
         {editing ? (
           <div className="flex gap-2">
             <Button
@@ -32,7 +37,7 @@ export default function EditableCard({
               size="sm"
               onClick={onSave}
               disabled={saving}
-              className="bg-brand-gradient text-white hover:brightness-105"
+              className="bg-[#D9480F] text-white hover:brightness-105"
             >
               {saving ? "Saving…" : "Save"}
             </Button>
@@ -47,7 +52,9 @@ export default function EditableCard({
           </button>
         )}
       </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <CardContent
+        className={contentClassName ?? "grid grid-cols-1 gap-4 sm:grid-cols-2"}
+      >
         {editing ? editChildren : children}
       </CardContent>
     </Card>

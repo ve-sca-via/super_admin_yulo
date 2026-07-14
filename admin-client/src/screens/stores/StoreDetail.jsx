@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CheckCircle2, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, FileText, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,32 @@ const STATUS_VARIANT = {
   expired: "muted",
 };
 
+const STATUS_LABEL = {
+  pending: "Pending Approval",
+  active: "Approved",
+  suspended: "Suspended",
+  rejected: "Rejected",
+  expired: "Expired",
+};
+
+const DOCUMENT_TYPES = [
+  { type: "fssai_license", label: "FSSAI License" },
+  { type: "business_registration", label: "Business Registration" },
+  { type: "gst_certificate", label: "GST Certificate" },
+  { type: "pan_card", label: "Identity Proof (PAN)" },
+  { type: "address_proof", label: "Address Proof" },
+  { type: "bank_statement", label: "Bank Statement" },
+];
+
+function fileNameOf(url) {
+  if (!url) return null;
+  try {
+    return decodeURIComponent(url.split("/").pop().split("?")[0]);
+  } catch {
+    return url;
+  }
+}
+
 const DAYS = [
   "monday",
   "tuesday",
@@ -52,6 +78,50 @@ function Field({ label, value }) {
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-sm font-semibold">{value ?? "—"}</p>
+    </div>
+  );
+}
+
+function ViewBox({ label, value, multiline }) {
+  return (
+    <div className="space-y-1.5">
+      {label ? (
+        <p className="text-xs text-muted-foreground">{label}</p>
+      ) : null}
+      <div
+        className={`rounded-lg border border-brand-cream/70 bg-white px-3 py-2 text-sm ${
+          multiline ? "min-h-[72px] whitespace-pre-line" : "flex h-9 items-center"
+        }`}
+      >
+        {value || <span className="text-muted-foreground">—</span>}
+      </div>
+    </div>
+  );
+}
+
+function PhoneBox({ label, value, editable, onChange }) {
+  const local = (value ?? "").replace(/^\+?91[\s-]?/, "");
+  return (
+    <div className="space-y-1.5">
+      {label ? (
+        <p className="text-xs text-muted-foreground">{label}</p>
+      ) : null}
+      <div className="flex gap-2">
+        <div className="flex h-9 w-16 shrink-0 items-center justify-center gap-0.5 rounded-lg border border-brand-cream/70 bg-brand-cream/20 text-sm text-muted-foreground">
+          +91 <ChevronDown className="h-3 w-3" />
+        </div>
+        {editable ? (
+          <Input
+            value={local}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1"
+          />
+        ) : (
+          <div className="flex h-9 flex-1 items-center rounded-lg border border-brand-cream/70 bg-white px-3 text-sm">
+            {local || <span className="text-muted-foreground">—</span>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -100,12 +170,15 @@ export default function StoreDetail() {
     setLicensesForm(store.settings ?? {});
     setProfileForm({
       name: store.name ?? "",
+      category: store.category ?? "",
       description: store.description ?? "",
       cuisineTypes: (store.cuisineTypes ?? []).join(", "),
+      bannerImage: store.bannerImage ?? "",
       street: store.address?.street ?? "",
       city: store.address?.city ?? "",
       state: store.address?.state ?? "",
       pincode: store.address?.pincode ?? "",
+      alternatePhone: store.settings?.alternatePhone ?? "",
     });
   }, [store]);
 
@@ -134,11 +207,8 @@ export default function StoreDetail() {
       title={
         <span className="flex items-center gap-3">
           {store.name}
-          <Badge
-            variant={STATUS_VARIANT[status] ?? "muted"}
-            className="capitalize"
-          >
-            {status}
+          <Badge variant={STATUS_VARIANT[status] ?? "muted"}>
+            {STATUS_LABEL[status] ?? status}
           </Badge>
         </span>
       }
@@ -151,9 +221,9 @@ export default function StoreDetail() {
                 size="sm"
                 onClick={() => approve.mutate()}
                 disabled={approve.isPending}
-                className="gap-1.5 bg-brand-gradient text-white hover:brightness-105"
+                className="gap-1.5 bg-[#D9480F] text-white hover:brightness-105"
               >
-                <CheckCircle2 className="h-4 w-4" /> Approve
+                <CheckCircle2 className="h-4 w-4" /> Approve Store
               </Button>
               <Button
                 size="sm"
@@ -161,7 +231,7 @@ export default function StoreDetail() {
                 onClick={() => setRejectOpen(true)}
                 className="gap-1.5 text-brand-maroon"
               >
-                <XCircle className="h-4 w-4" /> Reject
+                <XCircle className="h-4 w-4" /> Reject Store
               </Button>
             </>
           ) : null}
@@ -181,19 +251,21 @@ export default function StoreDetail() {
               size="sm"
               onClick={() => reactivate.mutate()}
               disabled={reactivate.isPending}
-              className="bg-brand-gradient text-white hover:brightness-105"
+              className="bg-[#D9480F] text-white hover:brightness-105"
             >
               Reactivate
             </Button>
           ) : null}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setRemoveOpen(true)}
-            className="gap-1.5 text-brand-maroon"
-          >
-            <Trash2 className="h-4 w-4" /> Remove Store
-          </Button>
+          {status !== "pending" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRemoveOpen(true)}
+              className="gap-1.5 text-brand-maroon"
+            >
+              <XCircle className="h-4 w-4" /> Remove Store
+            </Button>
+          ) : null}
         </div>
       }
     >
@@ -562,16 +634,22 @@ export default function StoreDetail() {
               update.mutate(
                 {
                   name: profileForm.name,
+                  category: profileForm.category,
                   description: profileForm.description,
                   cuisineTypes: profileForm.cuisineTypes
                     .split(",")
                     .map((s) => s.trim())
                     .filter(Boolean),
+                  bannerImage: profileForm.bannerImage,
                   address: {
                     street: profileForm.street,
                     city: profileForm.city,
                     state: profileForm.state,
                     pincode: profileForm.pincode,
+                  },
+                  settings: {
+                    ...store.settings,
+                    alternatePhone: profileForm.alternatePhone,
                   },
                 },
                 { onSuccess: () => setEditingProfile(false) },
@@ -589,7 +667,17 @@ export default function StoreDetail() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Cuisine Types (comma separated)</Label>
+                  <Label>Store Category</Label>
+                  <Input
+                    value={profileForm.category ?? ""}
+                    onChange={(e) =>
+                      setProfileForm((f) => ({ ...f, category: e.target.value }))
+                    }
+                  />
+                </div>
+                <ViewBox label="Owner Name" value={store.ownerId?.name} />
+                <div className="space-y-1.5">
+                  <Label>Cuisine Type (comma separated)</Label>
                   <Input
                     value={profileForm.cuisineTypes ?? ""}
                     onChange={(e) =>
@@ -600,27 +688,17 @@ export default function StoreDetail() {
                     }
                   />
                 </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Description</Label>
+                <ViewBox label="Email Address" value={store.ownerId?.email} />
+                <div className="space-y-1.5">
+                  <Label>Store Address</Label>
                   <Textarea
-                    value={profileForm.description ?? ""}
-                    onChange={(e) =>
-                      setProfileForm((f) => ({
-                        ...f,
-                        description: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Street</Label>
-                  <Input
                     value={profileForm.street ?? ""}
                     onChange={(e) =>
                       setProfileForm((f) => ({ ...f, street: e.target.value }))
                     }
                   />
                 </div>
+                <PhoneBox label="Phone Number" value={store.ownerId?.phone} />
                 <div className="space-y-1.5">
                   <Label>City</Label>
                   <Input
@@ -630,6 +708,14 @@ export default function StoreDetail() {
                     }
                   />
                 </div>
+                <PhoneBox
+                  label="Alternate Phone Number"
+                  value={profileForm.alternatePhone}
+                  editable
+                  onChange={(v) =>
+                    setProfileForm((f) => ({ ...f, alternatePhone: v }))
+                  }
+                />
                 <div className="space-y-1.5">
                   <Label>State</Label>
                   <Input
@@ -638,6 +724,63 @@ export default function StoreDetail() {
                       setProfileForm((f) => ({ ...f, state: e.target.value }))
                     }
                   />
+                </div>
+                <div className="flex gap-4">
+                  <div>
+                    <Label className="mb-1.5 block text-xs text-muted-foreground">
+                      Store Logo
+                    </Label>
+                    {store.logo ? (
+                      <img
+                        src={store.logo}
+                        alt="Store logo"
+                        className="h-24 w-24 rounded-lg border border-brand-cream object-cover"
+                      />
+                    ) : (
+                      <div className="grid h-24 w-24 place-items-center rounded-lg border border-brand-cream/70 bg-brand-cream/20 text-xs text-muted-foreground">
+                        No logo
+                      </div>
+                    )}
+                    {store.logo ? (
+                      <a
+                        href={store.logo}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1.5 block text-xs font-semibold text-brand-orange"
+                      >
+                        Preview Logo
+                      </a>
+                    ) : null}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <Label>Store Banner URL</Label>
+                    <Input
+                      value={profileForm.bannerImage ?? ""}
+                      onChange={(e) =>
+                        setProfileForm((f) => ({
+                          ...f,
+                          bannerImage: e.target.value,
+                        }))
+                      }
+                    />
+                    {store.bannerImage ? (
+                      <>
+                        <img
+                          src={store.bannerImage}
+                          alt="Store banner"
+                          className="h-24 w-full rounded-lg border border-brand-cream object-cover"
+                        />
+                        <a
+                          href={store.bannerImage}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block text-xs font-semibold text-brand-orange"
+                        >
+                          Preview Banner
+                        </a>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Pincode</Label>
@@ -651,29 +794,81 @@ export default function StoreDetail() {
               </>
             }
           >
-            <Field label="Restaurant Name" value={store.name} />
-            <Field
-              label="Cuisine Types"
-              value={(store.cuisineTypes ?? []).join(", ") || "—"}
+            <ViewBox label="Restaurant Name" value={store.name} />
+            <ViewBox label="Store Category" value={store.category} />
+            <ViewBox label="Owner Name" value={store.ownerId?.name} />
+            <ViewBox
+              label="Cuisine Type"
+              value={(store.cuisineTypes ?? []).join(", ")}
             />
-            <div className="sm:col-span-2">
-              <Field label="Description" value={store.description || "—"} />
+            <ViewBox label="Email Address" value={store.ownerId?.email} />
+            <ViewBox
+              label="Store Address"
+              value={store.address?.street}
+              multiline
+            />
+            <PhoneBox label="Phone Number" value={store.ownerId?.phone} />
+            <ViewBox label="City" value={store.address?.city} />
+            <PhoneBox
+              label="Alternate Phone Number"
+              value={store.settings?.alternatePhone}
+            />
+            <ViewBox label="State" value={store.address?.state} />
+            <div className="flex gap-4">
+              <div>
+                <Label className="mb-1.5 block text-xs text-muted-foreground">
+                  Store Logo
+                </Label>
+                {store.logo ? (
+                  <img
+                    src={store.logo}
+                    alt="Store logo"
+                    className="h-24 w-24 rounded-lg border border-brand-cream object-cover"
+                  />
+                ) : (
+                  <div className="grid h-24 w-24 place-items-center rounded-lg border border-brand-cream/70 bg-brand-cream/20 text-xs text-muted-foreground">
+                    No logo
+                  </div>
+                )}
+                {store.logo ? (
+                  <a
+                    href={store.logo}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1.5 block text-xs font-semibold text-brand-orange"
+                  >
+                    Preview Logo
+                  </a>
+                ) : null}
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-xs text-muted-foreground">
+                  Store Banner
+                </Label>
+                {store.bannerImage ? (
+                  <img
+                    src={store.bannerImage}
+                    alt="Store banner"
+                    className="h-24 w-32 rounded-lg border border-brand-cream object-cover"
+                  />
+                ) : (
+                  <div className="grid h-24 w-32 place-items-center rounded-lg border border-brand-cream/70 bg-brand-cream/20 text-xs text-muted-foreground">
+                    No banner
+                  </div>
+                )}
+                {store.bannerImage ? (
+                  <a
+                    href={store.bannerImage}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1.5 block text-xs font-semibold text-brand-orange"
+                  >
+                    Preview Banner
+                  </a>
+                ) : null}
+              </div>
             </div>
-            <div className="sm:col-span-2">
-              <Field
-                label="Store Address"
-                value={
-                  [
-                    store.address?.street,
-                    store.address?.city,
-                    store.address?.state,
-                    store.address?.pincode,
-                  ]
-                    .filter(Boolean)
-                    .join(", ") || "—"
-                }
-              />
-            </div>
+            <ViewBox label="Pincode" value={store.address?.pincode} />
           </EditableCard>
         </div>
 
@@ -681,85 +876,107 @@ export default function StoreDetail() {
           {/* Documents */}
           <Card>
             <CardContent className="p-5">
-              <h2 className="text-sm font-bold">
-                Documents Submitted{" "}
-                <span className="font-normal text-muted-foreground">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-base font-bold leading-tight">
+                  Documents
+                  <br />
+                  Submitted
+                </h2>
+                <p className="shrink-0 text-right text-xs leading-tight text-muted-foreground">
                   {
-                    (store.documents ?? []).filter(
-                      (d) => d.status === "verified",
+                    DOCUMENT_TYPES.filter((d) =>
+                      (store.documents ?? []).some(
+                        (sd) => sd.type === d.type && sd.url,
+                      ),
                     ).length
                   }
-                  /{store.documents?.length ?? 0} verified
-                </span>
-              </h2>
+                  /{DOCUMENT_TYPES.length} Documents
+                  <br />
+                  Uploaded
+                </p>
+              </div>
               <div className="mt-3 space-y-2.5">
-                {(store.documents ?? []).map((doc) => (
-                  <div
-                    key={doc._id ?? doc.type}
-                    className="flex items-center justify-between rounded-xl border border-brand-cream/70 px-3 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold capitalize">
-                        {doc.type?.replace(/_/g, " ")}
-                      </p>
-                      <Badge
-                        variant={
-                          doc.status === "verified"
-                            ? "ok"
-                            : doc.status === "rejected"
-                              ? "danger"
-                              : "warn"
-                        }
-                        className="mt-1 capitalize"
-                      >
-                        {doc.status}
-                      </Badge>
+                {DOCUMENT_TYPES.map(({ type, label }) => {
+                  const doc = (store.documents ?? []).find(
+                    (d) => d.type === type,
+                  );
+                  return (
+                    <div
+                      key={type}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-brand-cream/70 px-3 py-2.5"
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-cream/40 text-brand-maroon">
+                          <FileText className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">
+                            {label}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {fileNameOf(doc?.url) ?? "Not uploaded"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {doc?.url ? (
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-lg border border-brand-cream px-3 py-1.5 text-xs font-semibold text-[#5a403e] hover:bg-brand-cream/30"
+                          >
+                            View
+                          </a>
+                        ) : null}
+                        {doc?.status === "pending" ? (
+                          <>
+                            <button
+                              type="button"
+                              title="Verify"
+                              onClick={() =>
+                                verifyDoc.mutate({
+                                  docId: doc._id,
+                                  status: "verified",
+                                })
+                              }
+                              className="grid h-7 w-7 place-items-center rounded-full bg-[#E8F5EC] text-[#2E7D32]"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Reject"
+                              onClick={() =>
+                                verifyDoc.mutate({
+                                  docId: doc._id,
+                                  status: "rejected",
+                                })
+                              }
+                              className="grid h-7 w-7 place-items-center rounded-full bg-[#FCE9E4] text-[#B11226]"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : doc?.status === "verified" ? (
+                          <span
+                            title="Verified"
+                            className="grid h-6 w-6 place-items-center rounded-full bg-[#2E7D32] text-white"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </span>
+                        ) : doc?.status === "rejected" ? (
+                          <span
+                            title="Rejected"
+                            className="grid h-6 w-6 place-items-center rounded-full bg-[#B11226] text-white"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {doc.url ? (
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs font-semibold text-brand-orange"
-                        >
-                          View
-                        </a>
-                      ) : null}
-                      <button
-                        type="button"
-                        title="Verify"
-                        onClick={() =>
-                          verifyDoc.mutate({
-                            docId: doc._id,
-                            status: "verified",
-                          })
-                        }
-                        className="grid h-7 w-7 place-items-center rounded-full bg-[#E8F5EC] text-[#2E7D32]"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        title="Reject"
-                        onClick={() =>
-                          verifyDoc.mutate({
-                            docId: doc._id,
-                            status: "rejected",
-                          })
-                        }
-                        className="grid h-7 w-7 place-items-center rounded-full bg-[#FCE9E4] text-[#B11226]"
-                      >
-                        <XCircle className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {(store.documents ?? []).length === 0 ? (
-                  <p className="py-4 text-center text-sm text-muted-foreground">
-                    No documents uploaded.
-                  </p>
-                ) : null}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -796,7 +1013,7 @@ export default function StoreDetail() {
                       onSuccess: () => setNote(""),
                     })
                   }
-                  className="w-full bg-brand-gradient text-white hover:brightness-105"
+                  className="w-full bg-[#D9480F] text-white hover:brightness-105"
                 >
                   {addNote.isPending ? "Saving…" : "Save Note"}
                 </Button>

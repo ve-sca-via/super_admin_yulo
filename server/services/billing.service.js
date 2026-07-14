@@ -54,6 +54,50 @@ export const assembleBill = async (tableSessionId) => {
   return bill;
 };
 
+// Dine-in bills are assembled from a TableSession (assembleBill above); delivery/takeaway
+// orders have no session to batch into, so they get their own single-order bill once the
+// order reaches a terminal 'delivered' state (see kitchen.service.updateOrderStatus).
+export const createOrderBill = async (order) => {
+  const restaurant = await Restaurant.findById(order.restaurantId).lean();
+
+  const subtotal = order.subtotal;
+  const gstPercent = restaurant.settings.gstPercent;
+  const gstAmount = subtotal * (gstPercent / 100);
+  const serviceChargePercent = restaurant.settings.serviceChargePercent;
+  const serviceChargeAmount = subtotal * (serviceChargePercent / 100);
+  const grandTotal = subtotal + gstAmount + serviceChargeAmount;
+
+  const bill = await Bill.create({
+    restaurantId: order.restaurantId,
+    orderId: order._id,
+    batches: [
+      {
+        batchNumber: order.batchNumber,
+        orderId: order._id,
+        items: order.items.map((i) => ({
+          name: i.name,
+          quantity: i.quantity,
+          price: i.price,
+          lineTotal: i.price * i.quantity,
+        })),
+        batchTotal: subtotal,
+        placedAt: order.createdAt,
+      },
+    ],
+    subtotal,
+    gstPercent,
+    gstAmount,
+    serviceChargePercent,
+    serviceChargeAmount,
+    grandTotal,
+    status: 'paid',
+    paidAt: new Date(),
+    paidBy: order.paymentMethod ?? 'cash',
+  });
+
+  return bill;
+};
+
 export const applyDiscount = async ({ billId, discountCode, restaurantId }) => {
   const bill = await Bill.findById(billId);
   if (!bill || bill.status !== 'open') {

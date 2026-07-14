@@ -11,9 +11,22 @@ export const adminApi = {
     client.get("/admin/reports/top-stores", { params: { limit } }),
   getTopDeliveryPartners: (limit = 10) =>
     client.get("/admin/reports/top-delivery-partners", { params: { limit } }),
+  getLiveActivity: () => client.get("/admin/dashboard/live-activity"),
+  getHourlyActivity: () => client.get("/admin/dashboard/hourly-activity"),
+
+  // ── Finance ──────────────────────────────────────────────────────────
+  getFinanceOverview: (params = {}) =>
+    client.get("/admin/finance/overview", { params }),
+  getRevenueTrend: (months = 12) =>
+    client.get("/admin/finance/revenue-trend", { params: { months } }),
+  getEarningsVsSpending: (months = 12) =>
+    client.get("/admin/finance/earnings-vs-spending", { params: { months } }),
+  getFinanceRestaurants: (params = {}) =>
+    client.get("/admin/finance/restaurants", { params }),
 
   // ── Stores ───────────────────────────────────────────────────────────
   listStores: (params = {}) => client.get("/admin/stores", { params }),
+  createStore: (body) => client.post("/admin/stores", body),
   getStore: (id) => client.get(`/admin/stores/${id}`),
   approveStore: (id) => client.patch(`/admin/stores/${id}/approve`),
   rejectStore: (id, reason) =>
@@ -45,6 +58,18 @@ export const adminApi = {
     client.patch(`/admin/delivery-partners/${id}`, body),
   removeDeliveryPartner: (id) =>
     client.delete(`/admin/delivery-partners/${id}`),
+  getPartnerOrders: (id, params = {}) =>
+    client.get(`/admin/delivery-partners/${id}/orders`, { params }),
+  getPartnerPayouts: (id, params = {}) =>
+    client.get(`/admin/delivery-partners/${id}/payouts`, { params }),
+  adjustPayout: (partnerId, payoutId, body) =>
+    client.patch(`/admin/delivery-partners/${partnerId}/payouts/${payoutId}`, body),
+  markPayoutsPaid: (payoutIds) =>
+    client.post("/admin/delivery-partners/payouts/mark-paid", { payoutIds }),
+  getPayoutSummary: (period = "weekly") =>
+    client.get("/admin/delivery-partners/payouts/summary", { params: { period } }),
+  reassignOrderPartner: (orderId, partnerId, reason) =>
+    client.patch(`/admin/orders/${orderId}/delivery-partner`, { partnerId, reason }),
 
   // ── Support Tickets ──────────────────────────────────────────────────
   listTickets: (params = {}) => client.get("/admin/tickets", { params }),

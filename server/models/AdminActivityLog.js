@@ -6,10 +6,12 @@ const adminActivityLogSchema = new mongoose.Schema(
     action: { type: String, required: true },
     targetType: {
       type: String,
-      enum: ['restaurant', 'user', 'delivery_partner', 'ticket'],
+      enum: ['restaurant', 'user', 'delivery_partner', 'ticket', 'order', 'payout'],
       required: true,
     },
-    targetId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    // Optional: bulk actions (e.g. marking many payouts paid at once) don't have a
+    // single target — the affected ids live in `metadata` instead.
+    targetId: { type: mongoose.Schema.Types.ObjectId },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: { createdAt: true, updatedAt: false } }

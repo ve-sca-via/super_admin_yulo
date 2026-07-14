@@ -22,6 +22,9 @@ const schema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
   ALLOWED_ORIGINS: z.string().default('http://localhost:5173'),
   CUSTOMER_APP_URL: z.string().url().optional(),
+  PLATFORM_COMMISSION_PERCENT: z.coerce.number().default(15),
+  DELIVERY_PARTNER_PER_DELIVERY_RATE: z.coerce.number().default(30),
+  DELIVERY_PARTNER_MAX_CONCURRENT_ORDERS: z.coerce.number().default(1),
 });
 
 const result = schema.safeParse(process.env);

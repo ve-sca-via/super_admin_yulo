@@ -62,7 +62,7 @@ export default function CustomerDetail() {
       <Card>
         <CardContent className="flex flex-wrap items-center gap-5 p-5">
           <Avatar className="h-16 w-16">
-            <AvatarFallback className="bg-brand-gradient text-lg font-semibold text-white">
+            <AvatarFallback className="bg-[#D9480F] text-lg font-semibold text-white">
               {initials(customer.name)}
             </AvatarFallback>
           </Avatar>

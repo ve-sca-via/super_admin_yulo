@@ -11,6 +11,17 @@ const orderItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const deliveryAssignmentHistorySchema = new mongoose.Schema(
+  {
+    partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryPartner' },
+    assignedAt: { type: Date },
+    assignedBy: { type: String, enum: ['auto', 'admin'] },
+    unassignedAt: { type: Date },
+    reason: { type: String },
+  },
+  { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
   {
     restaurantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', required: true },
@@ -41,9 +52,23 @@ const orderSchema = new mongoose.Schema(
       coordinates: { type: [Number], default: null },
     },
     estimatedDeliveryTime: { type: Date },
+    deliveredAt: { type: Date, default: null },
+    deliveryAssignment: {
+      partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryPartner', default: null },
+      status: {
+        type: String,
+        enum: ['unassigned', 'assigned', 'picked_up', 'delivered', 'failed'],
+        default: 'unassigned',
+      },
+      assignedAt: { type: Date },
+      assignedBy: { type: String, enum: ['auto', 'admin'] },
+      history: [deliveryAssignmentHistorySchema],
+    },
   },
   { timestamps: true }
 );
+
+orderSchema.index({ 'deliveryAssignment.partnerId': 1, 'deliveryAssignment.status': 1 });
 
 orderSchema.index({ restaurantId: 1, createdAt: -1 });
 orderSchema.index({ tableSessionId: 1 });

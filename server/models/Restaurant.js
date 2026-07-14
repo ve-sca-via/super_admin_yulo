@@ -46,6 +46,7 @@ const restaurantSchema = new mongoose.Schema(
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name: { type: String, required: true, trim: true },
     description: { type: String },
+    category: { type: String },
     cuisineTypes: [String],
     coverImage: { type: String },
     logo: { type: String },
@@ -70,6 +71,7 @@ const restaurantSchema = new mongoose.Schema(
     settings: {
       legalEntityType:      { type: String },
       ownerName:            { type: String },
+      alternatePhone:       { type: String },
       panNumber:            { type: String },
       gstNumber:            { type: String },
       gstPercent:           { type: Number, default: 5 },

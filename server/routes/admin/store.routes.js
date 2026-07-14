@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   list,
+  create,
   getOne,
   approve,
   reject,
@@ -15,6 +16,7 @@ import {
 const router = Router();
 
 router.get('/', list);
+router.post('/', create);
 router.get('/:id', getOne);
 router.patch('/:id/approve', approve);
 router.patch('/:id/reject', reject);

@@ -1,9 +1,12 @@
+import { z } from 'zod';
 import DeliveryPartner from '../../models/DeliveryPartner.js';
+import Order from '../../models/Order.js';
 import * as uploadService from '../../services/upload.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { sendSuccess } from '../../utils/ApiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { logActivity } from '../../services/activityLog.service.js';
+import * as payoutService from '../../services/payout.service.js';
 
 const UPDATABLE_FIELDS = [
   'fullName',
@@ -162,4 +165,91 @@ export const remove = asyncHandler(async (req, res) => {
 
   await partner.deleteOne();
   sendSuccess(res, 200, 'Delivery partner removed', null);
+});
+
+export const getOrders = asyncHandler(async (req, res) => {
+  const { status, page = 1, limit = 20 } = req.query;
+  const filter = { 'deliveryAssignment.partnerId': req.params.id };
+  if (status) filter['deliveryAssignment.status'] = status;
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const [orders, total] = await Promise.all([
+    Order.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .populate('restaurantId', 'name address.city')
+      .lean(),
+    Order.countDocuments(filter),
+  ]);
+
+  sendSuccess(res, 200, 'Delivery partner orders', {
+    orders,
+    total,
+    page: Number(page),
+    pages: Math.ceil(total / Number(limit)),
+  });
+});
+
+export const getPayouts = asyncHandler(async (req, res) => {
+  const { period = 'weekly', page = 1, limit = 10 } = req.query;
+  const data = await payoutService.listPayoutsForPartner(req.params.id, {
+    periodType: period,
+    page,
+    limit,
+  });
+  sendSuccess(res, 200, 'Delivery partner payouts', data);
+});
+
+const adjustPayoutSchema = z.object({
+  incentives: z.number().min(0).optional(),
+  deductions: z.number().min(0).optional(),
+  notes: z.string().optional(),
+});
+
+export const adjustPayout = asyncHandler(async (req, res) => {
+  const result = adjustPayoutSchema.safeParse(req.body);
+  if (!result.success) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Invalid payout adjustment', result.error.flatten());
+  }
+
+  const payout = await payoutService.adjustPayout(req.params.payoutId, {
+    ...result.data,
+    adjustedBy: req.user._id,
+  });
+
+  await logActivity({
+    adminId: req.user._id,
+    action: 'PAYOUT_ADJUSTED',
+    targetType: 'payout',
+    targetId: payout._id,
+  });
+
+  sendSuccess(res, 200, 'Payout adjusted', { payout });
+});
+
+const markPaidSchema = z.object({ payoutIds: z.array(z.string()).min(1) });
+
+export const markPayoutsPaid = asyncHandler(async (req, res) => {
+  const result = markPaidSchema.safeParse(req.body);
+  if (!result.success) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Invalid payout ids', result.error.flatten());
+  }
+
+  const modifiedCount = await payoutService.markPayoutsPaid(result.data.payoutIds);
+
+  await logActivity({
+    adminId: req.user._id,
+    action: 'PAYOUTS_MARKED_PAID',
+    targetType: 'payout',
+    metadata: { count: modifiedCount, payoutIds: result.data.payoutIds },
+  });
+
+  sendSuccess(res, 200, 'Payouts marked as paid', { modifiedCount });
+});
+
+export const payoutSummary = asyncHandler(async (req, res) => {
+  const { period = 'weekly' } = req.query;
+  const data = await payoutService.getPayoutSummary(period);
+  sendSuccess(res, 200, 'Payout summary', data);
 });

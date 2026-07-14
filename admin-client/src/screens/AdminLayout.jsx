@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Store,
+  TrendingUp,
   Truck,
   Users,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { useOpenTicketCount } from "@/hooks/admin/useTickets";
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/stores", label: "Store Management", icon: Store },
+  { to: "/finance", label: "Financial Analytics", icon: TrendingUp },
   { to: "/customers", label: "Customer Report", icon: Users },
   { to: "/delivery-partners", label: "Delivery Partners", icon: Truck },
   { to: "/tickets", label: "Support & Tickets", icon: Headset },
@@ -87,7 +89,7 @@ function UserMenu({ compact = false }) {
           )}
         >
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-brand-gradient text-xs font-semibold text-white">
+            <AvatarFallback className="bg-[#D9480F] text-xs font-semibold text-white">
               {initials(name) || "SA"}
             </AvatarFallback>
           </Avatar>
@@ -131,11 +133,11 @@ export default function AdminLayout({
   const openTickets = useOpenTicketCount();
 
   return (
-    <div className="flex min-h-screen bg-brand-page font-sans text-[#24190f]">
+    <div className="flex min-h-screen bg-#fafaf8 font-sans text-[#24190f]">
       <aside className="sticky top-0 flex h-screen w-[260px] shrink-0 flex-col justify-between border-r border-brand-cream/60 bg-white">
         <div>
           <div className="flex items-center gap-3 px-6 pb-6 pt-6">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-gradient text-white">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#D9480F] text-white">
               <Store className="h-5 w-5" />
             </span>
             <div className="leading-tight">
@@ -158,7 +160,7 @@ export default function AdminLayout({
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-4 py-2.5 text-left text-sm font-medium transition-colors",
                     active
-                      ? "bg-brand-gradient text-white shadow-sm"
+                      ? "bg-[#D9480F] text-white shadow-sm"
                       : "text-[#5a453a] hover:bg-brand-cream/40",
                   )}
                 >

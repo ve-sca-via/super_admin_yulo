@@ -5,17 +5,42 @@ import { sendSuccess } from '../../utils/ApiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { logActivity } from '../../services/activityLog.service.js';
 
+// Not a stored field — "Complete" means a customer has filled in enough of their
+// profile (phone + at least one saved address) to actually place orders smoothly.
+const isProfileComplete = (customer) =>
+  Boolean(customer.phone) && (customer.savedAddresses?.length ?? 0) > 0;
+
+const withProfileStatus = (customer) => ({
+  ...customer,
+  location: customer.savedAddresses?.[0]
+    ? [customer.savedAddresses[0].city, customer.savedAddresses[0].state]
+        .filter(Boolean)
+        .join(', ')
+    : null,
+  profileStatus: isProfileComplete(customer) ? 'complete' : 'incomplete',
+});
+
 export const list = asyncHandler(async (req, res) => {
-  const { search, status, page = 1, limit = 20 } = req.query;
-  const filter = { role: 'customer' };
-  if (status) filter.isActive = status === 'active';
+  const { search, status, profileStatus, page = 1, limit = 20 } = req.query;
+  const conditions = [{ role: 'customer' }];
+  if (status) conditions.push({ isActive: status === 'active' });
   if (search) {
-    filter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } },
-      { phone: { $regex: search, $options: 'i' } },
-    ];
+    conditions.push({
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+      ],
+    });
   }
+  if (profileStatus === 'complete') {
+    conditions.push({ phone: { $ne: null } }, { 'savedAddresses.0': { $exists: true } });
+  } else if (profileStatus === 'incomplete') {
+    conditions.push({
+      $or: [{ phone: null }, { 'savedAddresses.0': { $exists: false } }],
+    });
+  }
+  const filter = { $and: conditions };
 
   const skip = (Number(page) - 1) * Number(limit);
   const [customers, total] = await Promise.all([
@@ -29,7 +54,7 @@ export const list = asyncHandler(async (req, res) => {
   ]);
 
   sendSuccess(res, 200, 'Customers', {
-    customers,
+    customers: customers.map(withProfileStatus),
     total,
     page: Number(page),
     pages: Math.ceil(total / Number(limit)),
@@ -41,7 +66,7 @@ export const getOne = asyncHandler(async (req, res) => {
     .select('-passwordHash')
     .lean();
   if (!customer) throw new ApiError(404, 'NOT_FOUND', 'Customer not found');
-  sendSuccess(res, 200, 'Customer', { customer });
+  sendSuccess(res, 200, 'Customer', { customer: withProfileStatus(customer) });
 });
 
 const setStatusSchema = z.object({ isActive: z.boolean() });

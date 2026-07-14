@@ -3,7 +3,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AdminRoute from "./components/AdminRoute";
 import Login from "./screens/Login";
 import AdminDashboard from "./screens/AdminDashboard";
+import FinancialAnalytics from "./screens/finance/FinancialAnalytics";
 import StoresList from "./screens/stores/StoresList";
+import StoreCreate from "./screens/stores/StoreCreate";
 import StoreDetail from "./screens/stores/StoreDetail";
 import CustomersList from "./screens/customers/CustomersList";
 import CustomerDetail from "./screens/customers/CustomerDetail";
@@ -36,10 +38,27 @@ export default function App() {
         }
       />
       <Route
+        path="/stores/new"
+        element={
+          <AdminRoute>
+            <StoreCreate />
+          </AdminRoute>
+        }
+      />
+      <Route
         path="/stores/:id"
         element={
           <AdminRoute>
             <StoreDetail />
+          </AdminRoute>
+        }
+      />
+
+      <Route
+        path="/finance"
+        element={
+          <AdminRoute>
+            <FinancialAnalytics />
           </AdminRoute>
         }
       />

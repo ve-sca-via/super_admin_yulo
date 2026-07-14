@@ -1,12 +1,15 @@
 import Order from '../models/Order.js';
 import { ApiError } from '../utils/ApiError.js';
 import { notifyService } from './notify.service.js';
+import { createOrderBill } from './billing.service.js';
+import { autoAssign } from './deliveryAssignment.service.js';
 
 const VALID_TRANSITIONS = {
   placed:    ['confirmed', 'preparing', 'cancelled'],
   confirmed: ['preparing', 'cancelled'],
   preparing: ['ready', 'cancelled'],
   ready:     ['out_for_delivery', 'delivered', 'cancelled'],
+  out_for_delivery: ['delivered', 'cancelled'],
 };
 
 export const getQueue = (restaurantId) => {
@@ -67,6 +70,20 @@ export const updateOrderStatus = async ({ orderId, currentStatus, newStatus, sta
       'CONCURRENT_UPDATE',
       'Status was already changed by another request — please refresh'
     );
+  }
+
+  if (newStatus === 'confirmed' && order.type === 'delivery') {
+    await autoAssign(order);
+  }
+
+  if (newStatus === 'delivered' && order.type !== 'dine_in') {
+    order.deliveredAt = new Date();
+    if (order.paymentStatus === 'pending') order.paymentStatus = 'paid';
+    if (order.type === 'delivery' && order.deliveryAssignment?.status !== 'failed') {
+      order.deliveryAssignment.status = 'delivered';
+    }
+    await order.save();
+    await createOrderBill(order);
   }
 
   notifyService.orderStatusUpdated(order);

@@ -79,7 +79,7 @@ export default function TicketDetail() {
                   key={i}
                   className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
                     m.senderType === "admin"
-                      ? "ml-auto bg-brand-gradient text-white"
+                      ? "ml-auto bg-[#D9480F] text-white"
                       : "bg-brand-cream/30"
                   }`}
                 >
@@ -114,7 +114,7 @@ export default function TicketDetail() {
                       onSuccess: () => setReply(""),
                     })
                   }
-                  className="bg-brand-gradient text-white hover:brightness-105"
+                  className="bg-[#D9480F] text-white hover:brightness-105"
                 >
                   <Send className="h-4 w-4" />
                 </Button>

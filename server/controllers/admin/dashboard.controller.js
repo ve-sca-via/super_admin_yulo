@@ -12,3 +12,14 @@ export const revenueOverview = asyncHandler(async (req, res) => {
   const points = await adminStatsService.getRevenueOverview(range);
   sendSuccess(res, 200, 'Revenue overview', { range, points });
 });
+
+export const liveActivity = asyncHandler(async (req, res) => {
+  const data = await adminStatsService.getLiveActivity();
+  sendSuccess(res, 200, 'Live activity', data);
+});
+
+export const hourlyActivity = asyncHandler(async (req, res) => {
+  const { days } = req.query;
+  const data = await adminStatsService.getHourlyActivity(days ? Number(days) : undefined);
+  sendSuccess(res, 200, 'Hourly activity', data);
+});

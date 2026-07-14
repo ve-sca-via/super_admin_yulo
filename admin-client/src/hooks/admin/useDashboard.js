@@ -34,3 +34,20 @@ export function useTopDeliveryPartners(limit = 5) {
     staleTime: 60_000,
   });
 }
+
+export function useLiveActivity() {
+  return useQuery({
+    queryKey: ["admin", "dashboard", "live-activity"],
+    queryFn: () => adminApi.getLiveActivity().then((r) => r.data.data),
+    refetchInterval: 20_000,
+    staleTime: 15_000,
+  });
+}
+
+export function useHourlyActivity() {
+  return useQuery({
+    queryKey: ["admin", "dashboard", "hourly-activity"],
+    queryFn: () => adminApi.getHourlyActivity().then((r) => r.data.data),
+    staleTime: 5 * 60_000,
+  });
+}

@@ -41,12 +41,14 @@ export default function CustomersList() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [profileStatus, setProfileStatus] = useState("all");
   const { page, limit, setPage } = usePagination(10);
   const debouncedSearch = useDebouncedValue(search);
 
   const { data, isLoading, error } = useCustomers({
     search: debouncedSearch || undefined,
     status: status === "all" ? undefined : status,
+    profileStatus: profileStatus === "all" ? undefined : profileStatus,
     page,
     limit,
   });
@@ -65,10 +67,26 @@ export default function CustomersList() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search name, email, or phone…"
+            placeholder="Search store name, owner, email, phone..."
             className="pl-9"
           />
         </div>
+        <Select
+          value={profileStatus}
+          onValueChange={(v) => {
+            setProfileStatus(v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Profile Status</SelectItem>
+            <SelectItem value="complete">Complete</SelectItem>
+            <SelectItem value="incomplete">Incomplete</SelectItem>
+          </SelectContent>
+        </Select>
         <Select
           value={status}
           onValueChange={(v) => {
@@ -80,7 +98,7 @@ export default function CustomersList() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="all">Activity</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
@@ -98,8 +116,10 @@ export default function CustomersList() {
               <TableRow className="border-brand-cream/60">
                 <TableHead className="pl-6">User</TableHead>
                 <TableHead>Email / Phone</TableHead>
+                <TableHead>Location</TableHead>
                 <TableHead>Joined On</TableHead>
-                <TableHead className="pr-6">Status</TableHead>
+                <TableHead>Profile Status</TableHead>
+                <TableHead className="pr-6">Activity</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -112,7 +132,7 @@ export default function CustomersList() {
                   <TableCell className="pl-6">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-brand-gradient text-[11px] font-semibold text-white">
+                        <AvatarFallback className="bg-[#D9480F] text-[11px] font-semibold text-white">
                           {initials(c.name)}
                         </AvatarFallback>
                       </Avatar>
@@ -124,22 +144,37 @@ export default function CustomersList() {
                     <div>{c.phone}</div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
+                    {c.location ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
                     {formatDate(c.createdAt)}
                   </TableCell>
-                  <TableCell className="pr-6">
+                  <TableCell>
                     <Badge
-                      variant={c.isActive ? "ok" : "danger"}
+                      variant={c.profileStatus === "complete" ? "ok" : "muted"}
                       className="capitalize"
                     >
-                      {c.isActive ? "Active" : "Inactive"}
+                      {c.profileStatus === "complete" ? "Complete" : "Incomplete"}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="pr-6">
+                    {c.profileStatus === "complete" ? (
+                      <Badge
+                        variant={c.isActive ? "ok" : "muted"}
+                        className="capitalize"
+                      >
+                        {c.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
               {!isLoading && data?.customers?.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={6}
                     className="py-10 text-center text-muted-foreground"
                   >
                     No customers match your filters.
@@ -149,7 +184,7 @@ export default function CustomersList() {
               {isLoading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={6}
                     className="py-10 text-center text-muted-foreground"
                   >
                     Loading…

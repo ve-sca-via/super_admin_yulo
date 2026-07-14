@@ -15,6 +15,14 @@ export function useStores(params = {}) {
   });
 }
 
+export function useCreateStore() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => adminApi.createStore(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: storeKeys.all }),
+  });
+}
+
 export function useStore(id) {
   return useQuery({
     queryKey: storeKeys.detail(id),

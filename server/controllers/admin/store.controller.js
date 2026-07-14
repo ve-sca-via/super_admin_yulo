@@ -1,12 +1,16 @@
+import crypto from 'crypto';
 import { z } from 'zod';
 import Restaurant from '../../models/Restaurant.js';
+import User from '../../models/User.js';
+import Bill from '../../models/Bill.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { sendSuccess } from '../../utils/ApiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { logActivity } from '../../services/activityLog.service.js';
+import { hashPassword } from '../../services/auth.service.js';
 import { STORE_STATUSES, shapeCounts } from '../../services/adminStats.service.js';
 
-const UPDATABLE_FIELDS = ['name', 'description', 'cuisineTypes', 'address', 'delivery', 'settings', 'plan'];
+const UPDATABLE_FIELDS = ['name', 'description', 'category', 'cuisineTypes', 'address', 'delivery', 'settings', 'plan'];
 
 export const list = asyncHandler(async (req, res) => {
   const { status, plan, search, page = 1, limit = 20 } = req.query;
@@ -27,12 +31,106 @@ export const list = asyncHandler(async (req, res) => {
     Restaurant.aggregate([{ $group: { _id: '$approvalStatus', count: { $sum: 1 } } }]),
   ]);
 
+  const revenueAgg = await Bill.aggregate([
+    { $match: { status: 'paid', restaurantId: { $in: stores.map((s) => s._id) } } },
+    { $group: { _id: '$restaurantId', revenue: { $sum: '$grandTotal' } } },
+  ]);
+  const revenueByStore = new Map(revenueAgg.map((r) => [r._id.toString(), r.revenue]));
+  const storesWithRevenue = stores.map((s) => ({
+    ...s,
+    revenue: revenueByStore.get(s._id.toString()) ?? 0,
+  }));
+
   sendSuccess(res, 200, 'Stores', {
-    stores,
+    stores: storesWithRevenue,
     total,
     page: Number(page),
     pages: Math.ceil(total / Number(limit)),
     statusCounts: shapeCounts(STORE_STATUSES, statusCountsAgg),
+  });
+});
+
+const createSchema = z.object({
+  name: z.string().min(1),
+  category: z.string().optional(),
+  description: z.string().optional(),
+  cuisineTypes: z.array(z.string()).optional(),
+  logo: z.string().optional(),
+  bannerImage: z.string().optional(),
+  coverImage: z.string().optional(),
+  address: z
+    .object({
+      street: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      pincode: z.string().optional(),
+    })
+    .optional(),
+  location: z
+    .object({ coordinates: z.array(z.number()).length(2) })
+    .optional(),
+  delivery: z
+    .object({
+      radiusKm: z.number().optional(),
+      baseCharge: z.number().optional(),
+      freeThreshold: z.number().optional(),
+      estimatedMinutes: z.number().optional(),
+    })
+    .optional(),
+  settings: z.record(z.any()).optional(),
+  plan: z.enum(['trial', 'basic', 'standard', 'premium']).optional(),
+  owner: z.object({
+    name: z.string().min(1),
+    email: z.string().email(),
+    phone: z.string().optional(),
+  }),
+});
+
+export const create = asyncHandler(async (req, res) => {
+  const result = createSchema.safeParse(req.body);
+  if (!result.success) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Invalid store data', result.error.flatten());
+  }
+  const { owner, location, ...storeData } = result.data;
+
+  let ownerUser = await User.findOne({ email: owner.email });
+  let tempPassword = null;
+
+  if (ownerUser && ownerUser.role !== 'restaurant_owner') {
+    throw new ApiError(409, 'DUPLICATE_KEY', 'This email is already registered under a different account role');
+  }
+
+  if (!ownerUser) {
+    tempPassword = crypto.randomBytes(9).toString('base64url');
+    ownerUser = await User.create({
+      name: owner.name,
+      email: owner.email,
+      phone: owner.phone,
+      passwordHash: await hashPassword(tempPassword),
+      role: 'restaurant_owner',
+    });
+  }
+
+  const store = await Restaurant.create({
+    ...storeData,
+    ownerId: ownerUser._id,
+    location: { type: 'Point', coordinates: location?.coordinates ?? [0, 0] },
+    approvalStatus: 'active',
+    reviewedAt: new Date(),
+    reviewedBy: req.user._id,
+  });
+
+  await logActivity({
+    adminId: req.user._id,
+    action: 'STORE_CREATED',
+    targetType: 'restaurant',
+    targetId: store._id,
+  });
+
+  sendSuccess(res, 201, 'Store created', {
+    store,
+    ownerCreated: tempPassword !== null,
+    tempPassword,
   });
 });
 

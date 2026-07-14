@@ -7,6 +7,8 @@ import deliveryPartnerRoutes from './deliveryPartner.routes.js';
 import ticketRoutes from './ticket.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
 import reportRoutes from './report.routes.js';
+import financeRoutes from './finance.routes.js';
+import orderRoutes from './order.routes.js';
 
 const router = Router();
 
@@ -18,5 +20,7 @@ router.use('/delivery-partners', deliveryPartnerRoutes);
 router.use('/tickets', ticketRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/reports', reportRoutes);
+router.use('/finance', financeRoutes);
+router.use('/orders', orderRoutes);
 
 export default router;
