@@ -178,8 +178,8 @@ function StatCard({
   onView,
 }) {
   return (
-    <Card>
-      <CardContent className="p-4">
+    <Card className="flex h-full flex-col">
+      <CardContent className="flex flex-1 flex-col p-4">
         <div className="flex items-center gap-2.5">
           <span
             className={`grid h-9 w-9 shrink-0 place-items-center rounded-[14px] ${iconClass}`}
@@ -206,7 +206,7 @@ function StatCard({
           <button
             type="button"
             onClick={onView}
-            className="mt-3 flex w-full items-center border-[1px] justify-center gap-1 rounded-lg bg-white py-2 text-xs font-semibold text-brand-orange transition"
+            className="mt-auto flex w-full items-center border-[1px] justify-center gap-1 rounded-lg bg-white py-2 text-xs font-semibold text-brand-orange transition"
           >
             {viewLabel} <ArrowRight className="h-3 w-3" />
           </button>
