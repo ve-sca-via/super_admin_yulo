@@ -16,6 +16,7 @@ import {
 
 import { PartnerAuthProvider } from "@/context/PartnerAuthContext";
 import RootNavigator from "@/navigation/RootNavigator";
+import { linking } from "@/navigation/linking";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,7 +42,7 @@ export default function App() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <PartnerAuthProvider>
-            <NavigationContainer>
+            <NavigationContainer linking={linking}>
               <RootNavigator />
             </NavigationContainer>
           </PartnerAuthProvider>

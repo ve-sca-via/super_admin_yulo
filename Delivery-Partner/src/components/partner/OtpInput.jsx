@@ -7,7 +7,15 @@ import Text from "@/components/ui/Text";
 // Six visible boxes driven by one off-screen TextInput that holds real
 // keyboard focus — RN has no `sr-only`, so the input is rendered at 1x1/opacity 0
 // instead of visually hidden the way the web version's <input> was.
-export default function OtpInput({ length = 6, value, onChange, className }) {
+export default function OtpInput({
+  length = 6,
+  value,
+  onChange,
+  className,
+  boxHeight = 60,
+  boxWidth = 52,
+  accessibilityLabel = "OTP code",
+}) {
   const inputRef = useRef(null);
   const digits = value.split("");
 
@@ -24,7 +32,7 @@ export default function OtpInput({ length = 6, value, onChange, className }) {
         textContentType="oneTimeCode"
         maxLength={length}
         style={{ position: "absolute", opacity: 0, height: 1, width: 1 }}
-        accessibilityLabel="OTP code"
+        accessibilityLabel={accessibilityLabel}
       />
       {Array.from({ length }).map((_, i) => {
         const filled = i < digits.length;
@@ -32,8 +40,9 @@ export default function OtpInput({ length = 6, value, onChange, className }) {
         return (
           <View
             key={i}
+            style={{ height: boxHeight, width: boxWidth }}
             className={cn(
-              "h-[60px] w-[52px] items-center justify-center rounded-xl border",
+              "items-center justify-center rounded-xl border",
               active ? "border-2 border-primary bg-primary-tint" : "border-border bg-white",
             )}
           >

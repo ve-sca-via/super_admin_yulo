@@ -4,10 +4,16 @@ import { useNavigation, useNavigationState } from "@react-navigation/native";
 
 import { cn } from "@/lib/utils";
 import Text from "@/components/ui/Text";
+import { mockPartner } from "@/mocks/fixtures";
+
+// A veg-fleet partner only ever sees veg orders (see FleetBadgeInfo — "Non-veg
+// order offers will never appear"), so which incoming-order screen the Orders
+// tab opens has to match the signed-in partner's fleetType, not be hardcoded.
+const ORDERS_ROUTE = mockPartner.fleetType === "veg" ? "OrdersIncomingVeg" : "OrdersIncomingStandard";
 
 const ITEMS = [
   { route: "HomeOffline", label: "Home", icon: Home },
-  { route: "OrdersIncomingStandard", label: "Orders", icon: Package },
+  { route: ORDERS_ROUTE, label: "Orders", icon: Package },
   { route: "Earnings", label: "Earn", icon: Wallet },
   { route: "Profile", label: "Profile", icon: User },
 ];

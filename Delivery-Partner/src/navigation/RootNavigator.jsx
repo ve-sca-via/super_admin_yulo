@@ -10,6 +10,19 @@ import DocumentCapture from "@/screens/onboarding/DocumentCapture";
 import VerificationStatus from "@/screens/onboarding/VerificationStatus";
 import TrainingModule from "@/screens/onboarding/TrainingModule";
 import TrainingComplete from "@/screens/onboarding/TrainingComplete";
+import Home from "@/screens/home/Home";
+import FleetBadgeInfo from "@/screens/home/FleetBadgeInfo";
+import IncomingOrder from "@/screens/orders/IncomingOrder";
+import RejectReasonSheet from "@/screens/orders/RejectReasonSheet";
+import SkipConfirmed from "@/screens/orders/SkipConfirmed";
+import GoToPickup from "@/screens/delivery/GoToPickup";
+import VegCheckpoint from "@/screens/delivery/VegCheckpoint";
+import NavigateToCustomer from "@/screens/delivery/NavigateToCustomer";
+import CodCollection from "@/screens/delivery/CodCollection";
+import PaymentReceived from "@/screens/delivery/PaymentReceived";
+import DeliverySummary from "@/screens/delivery/DeliverySummary";
+import Earnings from "@/screens/earnings/Earnings";
+import CashDeposit from "@/screens/earnings/CashDeposit";
 
 const Stack = createNativeStackNavigator();
 
@@ -17,27 +30,6 @@ const Stack = createNativeStackNavigator();
 // every one of the 32 screens gets a route from day one (real or stub) so
 // in-app navigation never dead-ends while the remaining flows are built out.
 const STUBS = [
-  { name: "HomeOffline", title: "Home (Offline)", flow: "Flow 2 — Going Online" },
-  { name: "HomeOnline", title: "Home (Online / Idle)", flow: "Flow 2 — Going Online" },
-  { name: "FleetBadgeInfo", title: "Fleet Badge Info Sheet", flow: "Flow 2 — Going Online" },
-
-  { name: "OrdersIncomingVeg", title: "Incoming Order (Veg Fleet)", flow: "Flow 3 — Order Assignment" },
-  { name: "OrdersIncomingStandard", title: "Incoming Order (Standard Fleet)", flow: "Flow 3 — Order Assignment" },
-  { name: "OrdersReject", title: "Reject Reason Sheet", flow: "Flow 3 — Order Assignment" },
-  { name: "OrdersSkipConfirmed", title: "Skip Confirmed", flow: "Flow 3 — Order Assignment" },
-
-  { name: "DeliveryPickup", title: "Go to Pickup", flow: "Flow 4 — Pickup → Deliver" },
-  { name: "DeliveryVegCheckpoint", title: "Veg Checkpoint (At Restaurant)", flow: "Flow 4 — Pickup → Deliver" },
-  { name: "DeliveryNavigate", title: "Navigate to Customer", flow: "Flow 4 — Pickup → Deliver" },
-  { name: "DeliveryCodCollection", title: "COD Collection", flow: "Flow 4 — Pickup → Deliver" },
-  { name: "DeliveryPaymentReceived", title: "Payment Received", flow: "Flow 4 — Pickup → Deliver" },
-  { name: "DeliverySummary", title: "Delivery Summary", flow: "Flow 4 — Pickup → Deliver" },
-
-  { name: "Earnings", title: "Earnings", flow: "Flow 5 — Earnings" },
-  { name: "EarningsWeekly", title: "Earnings (Weekly)", flow: "Flow 5 — Earnings" },
-  { name: "EarningsMonthly", title: "Earnings (Monthly)", flow: "Flow 5 — Earnings" },
-  { name: "EarningsCashDeposit", title: "Cash Deposit", flow: "Flow 5 — Earnings" },
-
   { name: "Profile", title: "Profile", flow: "Flow 6 — Profile & Account" },
   { name: "ProfilePersonalDetails", title: "Personal Details", flow: "Flow 6 — Profile & Account" },
   { name: "ProfileHelpSupport", title: "Help & Support", flow: "Flow 6 — Profile & Account" },
@@ -69,6 +61,34 @@ export default function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Onboarding">
       <Stack.Screen name="Onboarding" component={OnboardingStack} />
+      <Stack.Screen name="HomeOffline" component={Home} />
+      <Stack.Screen
+        name="FleetBadgeInfo"
+        component={FleetBadgeInfo}
+        options={{ presentation: "transparentModal", animation: "fade" }}
+      />
+      <Stack.Screen name="OrdersIncomingVeg" component={IncomingOrder} initialParams={{ orderKey: "veg" }} />
+      <Stack.Screen
+        name="OrdersIncomingStandard"
+        component={IncomingOrder}
+        initialParams={{ orderKey: "standard" }}
+      />
+      <Stack.Screen
+        name="OrdersReject"
+        component={RejectReasonSheet}
+        options={{ presentation: "transparentModal", animation: "fade" }}
+      />
+      <Stack.Screen name="OrdersSkipConfirmed" component={SkipConfirmed} />
+      <Stack.Screen name="DeliveryPickup" component={GoToPickup} />
+      <Stack.Screen name="DeliveryVegCheckpoint" component={VegCheckpoint} />
+      <Stack.Screen name="DeliveryNavigate" component={NavigateToCustomer} />
+      <Stack.Screen name="DeliveryCodCollection" component={CodCollection} />
+      <Stack.Screen name="DeliveryPaymentReceived" component={PaymentReceived} />
+      <Stack.Screen name="DeliverySummary" component={DeliverySummary} />
+      <Stack.Screen name="Earnings" component={Earnings} initialParams={{ period: "today" }} />
+      <Stack.Screen name="EarningsWeekly" component={Earnings} initialParams={{ period: "weekly" }} />
+      <Stack.Screen name="EarningsMonthly" component={Earnings} initialParams={{ period: "monthly" }} />
+      <Stack.Screen name="EarningsCashDeposit" component={CashDeposit} />
       {STUBS.map(({ name, title, flow, showNav }) => (
         <Stack.Screen key={name} name={name}>
           {() => <PlaceholderScreen title={title} flow={flow} showNav={showNav ?? true} />}
