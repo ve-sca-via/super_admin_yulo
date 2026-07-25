@@ -69,12 +69,14 @@ export default function Home() {
     <Screen edges={["top", "bottom"]}>
       <View className="h-16 w-full flex-row items-center justify-between bg-card pl-6 pr-5">
         <Text className="font-jakarta-semibold text-[16px] text-foreground">Good morning, Raju</Text>
-        <Pressable
-          onPress={() => navigation.navigate("FleetBadgeInfo")}
-          className="h-7 items-center justify-center rounded-full bg-primary-tint px-3"
-        >
-          <Text className="font-jakarta-semibold text-xs text-primary-hover">{FLEET_LABEL}</Text>
-        </Pressable>
+        {!isOnline && (
+          <Pressable
+            onPress={() => navigation.navigate("FleetBadgeInfo")}
+            className="h-7 items-center justify-center rounded-full bg-success-tint px-3"
+          >
+            <Text className="font-jakarta-semibold text-xs text-[#17803d]">{FLEET_LABEL}</Text>
+          </Pressable>
+        )}
       </View>
 
       {isOnline ? (

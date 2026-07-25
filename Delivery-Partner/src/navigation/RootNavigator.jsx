@@ -5,8 +5,11 @@ import PlaceholderScreen from "@/components/partner/PlaceholderScreen";
 
 import PhoneEntry from "@/screens/onboarding/PhoneEntry";
 import OtpVerification from "@/screens/onboarding/OtpVerification";
+import PersonalInformation from "@/screens/onboarding/PersonalInformation";
 import DocumentUploadHub from "@/screens/onboarding/DocumentUploadHub";
 import DocumentCapture from "@/screens/onboarding/DocumentCapture";
+import VehicleDetailsForm from "@/screens/onboarding/VehicleDetailsForm";
+import BankPaymentDetails from "@/screens/onboarding/BankPaymentDetails";
 import VerificationStatus from "@/screens/onboarding/VerificationStatus";
 import TrainingModule from "@/screens/onboarding/TrainingModule";
 import TrainingComplete from "@/screens/onboarding/TrainingComplete";
@@ -23,6 +26,16 @@ import PaymentReceived from "@/screens/delivery/PaymentReceived";
 import DeliverySummary from "@/screens/delivery/DeliverySummary";
 import Earnings from "@/screens/earnings/Earnings";
 import CashDeposit from "@/screens/earnings/CashDeposit";
+import DepositConfirmed from "@/screens/earnings/DepositConfirmed";
+import SelfieCapture from "@/screens/onboarding/SelfieCapture";
+import Profile from "@/screens/profile/Profile";
+import PersonalDetails from "@/screens/profile/PersonalDetails";
+import VehicleDetails from "@/screens/profile/VehicleDetails";
+import DocumentsUploaded from "@/screens/profile/DocumentsUploaded";
+import SupportHelp from "@/screens/profile/SupportHelp";
+import Notifications from "@/screens/profile/Notifications";
+import FleetChangeRequest from "@/screens/profile/FleetChangeRequest";
+import RequestSubmitted from "@/screens/profile/RequestSubmitted";
 
 const Stack = createNativeStackNavigator();
 
@@ -30,12 +43,7 @@ const Stack = createNativeStackNavigator();
 // every one of the 32 screens gets a route from day one (real or stub) so
 // in-app navigation never dead-ends while the remaining flows are built out.
 const STUBS = [
-  { name: "Profile", title: "Profile", flow: "Flow 6 — Profile & Account" },
-  { name: "ProfilePersonalDetails", title: "Personal Details", flow: "Flow 6 — Profile & Account" },
-  { name: "ProfileHelpSupport", title: "Help & Support", flow: "Flow 6 — Profile & Account" },
   { name: "ProfileSettings", title: "App Settings", flow: "Flow 6 — Profile & Account" },
-  { name: "ProfileFleetChange", title: "Fleet Change Request", flow: "Flow 6 — Profile & Account" },
-  { name: "ProfileFleetChangeSubmitted", title: "Request Submitted", flow: "Flow 6 — Profile & Account", showNav: false },
 
   { name: "EdgeFleetDecision", title: "Customer Fleet Decision Prompt", flow: "Flow 7 — Edge Cases", showNav: false },
   { name: "EdgeVegViolation", title: "Veg Violation Detected", flow: "Flow 7 — Edge Cases", showNav: false },
@@ -47,8 +55,12 @@ function OnboardingStack() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="OnboardingPhoneEntry" component={PhoneEntry} />
         <Stack.Screen name="OnboardingOtp" component={OtpVerification} />
+        <Stack.Screen name="OnboardingPersonalInfo" component={PersonalInformation} />
         <Stack.Screen name="OnboardingDocuments" component={DocumentUploadHub} />
         <Stack.Screen name="OnboardingDocumentCapture" component={DocumentCapture} />
+        <Stack.Screen name="SelfieCapture" component={SelfieCapture} />
+        <Stack.Screen name="OnboardingVehicleDetails" component={VehicleDetailsForm} />
+        <Stack.Screen name="OnboardingBankDetails" component={BankPaymentDetails} />
         <Stack.Screen name="OnboardingStatus" component={VerificationStatus} />
         <Stack.Screen name="OnboardingTraining" component={TrainingModule} />
         <Stack.Screen name="OnboardingTrainingComplete" component={TrainingComplete} />
@@ -89,6 +101,14 @@ export default function RootNavigator() {
       <Stack.Screen name="EarningsWeekly" component={Earnings} initialParams={{ period: "weekly" }} />
       <Stack.Screen name="EarningsMonthly" component={Earnings} initialParams={{ period: "monthly" }} />
       <Stack.Screen name="EarningsCashDeposit" component={CashDeposit} />
+      <Stack.Screen name="Profile" component={Profile} />
+      <Stack.Screen name="ProfilePersonalDetails" component={PersonalDetails} />
+      <Stack.Screen name="ProfileVehicleDetails" component={VehicleDetails} />
+      <Stack.Screen name="ProfileDocuments" component={DocumentsUploaded} />
+      <Stack.Screen name="ProfileHelpSupport" component={SupportHelp} />
+      <Stack.Screen name="ProfileNotifications" component={Notifications} />
+      <Stack.Screen name="ProfileFleetChange" component={FleetChangeRequest} />
+      <Stack.Screen name="ProfileFleetChangeSubmitted" component={RequestSubmitted} />
       {STUBS.map(({ name, title, flow, showNav }) => (
         <Stack.Screen key={name} name={name}>
           {() => <PlaceholderScreen title={title} flow={flow} showNav={showNav ?? true} />}

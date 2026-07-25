@@ -71,6 +71,12 @@ export default function PaymentReceived() {
           </View>
         </View>
 
+        <View className="w-full items-center rounded-full border border-[#e53e3e] bg-[#fce8e8] p-4 shadow-md shadow-black/10">
+          <Text className="text-center font-jakarta-semibold text-sm text-[#e53e3e]">
+            Cash in hand: ₹{CASH_IN_HAND_BEFORE} · Deposit now →
+          </Text>
+        </View>
+
         <Button onPress={() => navigation.navigate("HomeOffline")}>Done — next order</Button>
       </View>
 

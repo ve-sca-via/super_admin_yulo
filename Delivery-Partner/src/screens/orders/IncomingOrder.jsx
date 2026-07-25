@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { MapPin } from "lucide-react-native";
 
 import Button from "@/components/ui/Button";
 import Text from "@/components/ui/Text";
+import BottomNav from "@/components/partner/BottomNav";
 import { mockOrders } from "@/mocks/fixtures";
 
 const MAP_BG = { veg: "#0d1a0d", standard: "#0d0d1f" };
@@ -58,7 +58,6 @@ export default function IncomingOrder() {
         className="h-[320px] w-full overflow-hidden pl-4 pr-4 pt-3"
         style={{ backgroundColor: MAP_BG[order.fleetType] }}
       >
-        <Text className="font-jakarta-medium text-sm text-white">Route to pickup</Text>
         <View className="absolute" style={{ left: 55, top: 50, right: 24 }}>
           <View className="flex-row items-center gap-1.5">
             <View className="size-4 items-center justify-center rounded-full bg-primary">
@@ -79,32 +78,21 @@ export default function IncomingOrder() {
       </View>
 
       <View className="w-full flex-1 gap-2 rounded-[20px] bg-card px-6 pt-[18px]">
-        <View className="w-full flex-row items-start justify-between">
-          <Text className="flex-1 font-jakarta-bold text-lg text-foreground">
-            {order.restaurantName}
-          </Text>
-          <View className="size-[60px] items-center justify-center rounded-full border-4 border-primary">
-            <Text className="font-jakarta-bold text-sm text-foreground">{secondsLeft}s</Text>
-          </View>
-        </View>
+        <Text className="w-full font-jakarta-bold text-lg text-foreground">
+          {order.restaurantName}
+        </Text>
 
-        <View className="w-full flex-row items-center gap-1.5">
-          <MapPin size={14} color={isVeg ? "#22a853" : "#8b1a1a"} />
-          <Text
-            className={
-              isVeg
-                ? "font-jakarta-semibold text-xs text-success"
-                : "font-jakarta-semibold text-xs text-[#8b1a1a]"
-            }
-          >
-            {isVeg ? "Veg order" : "Non-veg order"}
-          </Text>
-        </View>
+        {!isVeg && (
+          <View className="w-full flex-row items-center gap-1.5">
+            <MapPin size={14} color="#8b1a1a" />
+            <Text className="font-jakarta-semibold text-xs text-[#8b1a1a]">Non-veg order</Text>
+          </View>
+        )}
 
         {isVeg && (
-          <View className="h-9 w-full items-center justify-center rounded-lg bg-success-tint px-3">
-            <Text className="text-center font-jakarta-semibold text-[13px] text-[#17803d]">
-              ✅ Veg-Only order — use your certified bag
+          <View className="h-9 w-full flex-row items-center rounded-lg bg-success-tint px-3">
+            <Text className="font-jakarta-semibold text-[13px] text-[#17803d]">
+              Veg-Only order — use your certified bag
             </Text>
           </View>
         )}
@@ -128,11 +116,13 @@ export default function IncomingOrder() {
           <Button className="flex-1" onPress={handleAccept}>
             Accept
           </Button>
-          <Button className="flex-1" variant="secondary" size="sm" onPress={handleSkip}>
+          <Button className="flex-1" variant="secondary" onPress={handleSkip}>
             Skip
           </Button>
         </View>
       </View>
+
+      <BottomNav />
     </View>
   );
 }

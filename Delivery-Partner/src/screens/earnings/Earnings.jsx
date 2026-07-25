@@ -75,17 +75,6 @@ export default function Earnings() {
           </Text>
         </View>
 
-        {isVeg && (
-          <View className="w-full gap-1.5 rounded-[20px] border border-success bg-success-tint px-4 py-3.5 shadow-md shadow-black/10">
-            <Text className="font-jakarta-semibold text-sm text-[#17803d]">
-              💚 Veg Fleet idle-pay earned {data.label}
-            </Text>
-            <Text className="text-xs text-[#17803d]">
-              {formatCurrency(data.idlePay)} — keeping the fleet available while you waited
-            </Text>
-          </View>
-        )}
-
         <View className="w-full gap-3 rounded-[20px] bg-card p-4 shadow-md shadow-black/10">
           <Text className="font-jakarta-bold text-base text-foreground">Breakdown</Text>
           <View className="gap-3">

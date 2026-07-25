@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
@@ -14,15 +13,12 @@ const AMOUNT_TO_DEPOSIT = 605;
 
 export default function CashDeposit() {
   const navigation = useNavigation();
-  // "Find nearest deposit point" would need real maps integration we don't
-  // have yet — left as a static affordance, same as the Call buttons on the
-  // delivery screens. "I've deposited at store" is the one real completion
-  // path, so that's what closes out the screen.
-  const [deposited, setDeposited] = useState(false);
 
+  // Both "Deposit cash" (primary) and "I've deposited at store" (secondary)
+  // are real completion paths in the updated design — no QR/maps affordance
+  // exists here anymore — so both close out the screen the same way.
   function handleDeposited() {
-    setDeposited(true);
-    navigation.navigate("HomeOffline");
+    navigation.navigate("EarningsDepositConfirmed");
   }
 
   return (
@@ -39,25 +35,10 @@ export default function CashDeposit() {
           </Text>
         </View>
 
-        <View className="w-full items-center gap-2 rounded-[20px] bg-card px-4 pb-9 pt-2 shadow-md shadow-black/10">
-          <Text className="py-1.5 text-center text-sm text-muted-foreground">
-            Scan at any deposit point
-          </Text>
-          <View className="size-[148px] items-center justify-center rounded-xl bg-muted">
-            <Text className="text-sm text-muted-foreground">QR Code</Text>
-          </View>
-        </View>
-
-        <View className="w-full flex-row items-center gap-3 py-1.5">
-          <View className="h-px flex-1 bg-border" />
-          <Text className="text-sm text-muted-foreground">or</Text>
-          <View className="h-px flex-1 bg-border" />
-        </View>
-
+        <Button onPress={handleDeposited}>Deposit cash</Button>
         <Button variant="secondary" size="sm" onPress={handleDeposited}>
-          {deposited ? "Deposit recorded ✓" : "I've deposited at store"}
+          I&rsquo;ve deposited at store
         </Button>
-        <Button>Find nearest deposit point</Button>
       </View>
     </Screen>
   );

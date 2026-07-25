@@ -16,25 +16,27 @@ const CHECKLIST_ITEMS = [
   { key: "noOther", label: "No other order in bag" },
 ];
 
+// Reached from GoToPickup once the partner arrives at the restaurant. Renders
+// two Figma frames from one component, same pattern as IncomingOrder.jsx's
+// veg/standard split: "14 – Veg Checkpoint" adds a packaging-verification
+// checklist between the order items and the OTP entry; "14 – Regular order
+// Checkpoint" goes straight from items to OTP. Both are driven by
+// `order.fleetType`, so GoToPickup can route here for either fleet without
+// needing a second registered route — see the routing note in GoToPickup.jsx.
 export default function VegCheckpoint() {
   const navigation = useNavigation();
   const { params } = useRoute();
   const orderKey = params?.orderKey ?? "veg";
   const order = mockOrders[orderKey];
+  const isVeg = order.fleetType === "veg";
 
-  const [packedItems, setPackedItems] = useState(() =>
-    Object.fromEntries(order.items.map((item, i) => [item.name, i < order.items.length - 1])),
-  );
   const [checklist, setChecklist] = useState({ sealed: true, noOther: false });
   const [otp, setOtp] = useState("");
 
-  const allPacked = Object.values(packedItems).every(Boolean);
   const allChecked = Object.values(checklist).every(Boolean);
-  const canConfirm = allPacked && allChecked && otp.length === 4;
+  const checklistPending = isVeg && !allChecked;
+  const canConfirm = !checklistPending && otp.length === 4;
 
-  function togglePacked(name) {
-    setPackedItems((prev) => ({ ...prev, [name]: !prev[name] }));
-  }
   function toggleChecklist(key) {
     setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
   }
@@ -51,51 +53,42 @@ export default function VegCheckpoint() {
       <View className="w-full gap-4 px-6 pt-5">
         <View className="w-full gap-3.5 rounded-[20px] bg-card px-4 py-3.5 shadow-md shadow-black/10">
           <Text className="font-jakarta-semibold text-sm text-foreground">Order items</Text>
-          {order.items.map((item) => {
-            const isPacked = packedItems[item.name];
-            return (
-              <Pressable
-                key={item.name}
-                onPress={() => togglePacked(item.name)}
-                className="w-full flex-row items-center gap-2"
-              >
-                <View className="size-2.5 rounded-sm bg-success" />
-                <Text className="flex-1 text-sm text-foreground">
-                  {item.name} × {item.qty}
-                </Text>
-                {isPacked && <Check size={16} color="#22a853" strokeWidth={3} />}
-              </Pressable>
-            );
-          })}
+          {order.items.map((item) => (
+            <Text key={item.name} className="w-full text-sm text-foreground">
+              {item.name} × {item.qty}
+            </Text>
+          ))}
         </View>
 
-        <View className="w-full gap-4 rounded-[20px] border-[1.5px] border-success bg-success-tint p-4 shadow-md shadow-black/10">
-          <Text className="font-jakarta-bold text-base text-[#17803d]">Veg pickup checklist</Text>
-          <View className="w-full gap-6">
-            {CHECKLIST_ITEMS.map(({ key, label }) => {
-              const checked = checklist[key];
-              return (
-                <Pressable
-                  key={key}
-                  onPress={() => toggleChecklist(key)}
-                  className="w-full flex-row items-center gap-3"
-                >
-                  <View
-                    className={cn(
-                      "size-7 items-center justify-center rounded-lg",
-                      checked ? "bg-success" : "border-2 border-border-strong bg-white",
-                    )}
+        {isVeg && (
+          <View className="w-full gap-4 rounded-[20px] border-[1.5px] border-success bg-success-tint p-4 shadow-md shadow-black/10">
+            <Text className="font-jakarta-bold text-base text-[#17803d]">Veg pickup checklist</Text>
+            <View className="w-full gap-6">
+              {CHECKLIST_ITEMS.map(({ key, label }) => {
+                const checked = checklist[key];
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => toggleChecklist(key)}
+                    className="w-full flex-row items-center gap-3"
                   >
-                    {checked && <Check size={16} color="#ffffff" strokeWidth={3} />}
-                  </View>
-                  <Text className="flex-1 font-jakarta-medium text-sm text-foreground">
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <View
+                      className={cn(
+                        "size-7 items-center justify-center rounded-lg",
+                        checked ? "bg-success" : "border-2 border-border-strong bg-white",
+                      )}
+                    >
+                      {checked && <Check size={16} color="#ffffff" strokeWidth={3} />}
+                    </View>
+                    <Text className="flex-1 font-jakarta-medium text-sm text-foreground">
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        </View>
+        )}
 
         <View className="w-full gap-2 rounded-[20px] bg-card px-4 py-3.5 shadow-md shadow-black/10">
           <Text className="font-jakarta-semibold text-sm text-foreground">Enter pickup OTP</Text>
@@ -110,7 +103,7 @@ export default function VegCheckpoint() {
         </View>
 
         <Button variant={canConfirm ? "default" : "disabled"} disabled={!canConfirm} onPress={handleConfirm}>
-          {canConfirm ? "Confirm pickup" : "Confirm pickup — complete checklist first"}
+          {checklistPending ? "Confirm pickup — complete checklist first" : "Confirm pickup"}
         </Button>
       </View>
     </Screen>

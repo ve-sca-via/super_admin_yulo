@@ -47,7 +47,7 @@ export default function FleetBadgeInfo() {
         <View className="gap-4">
           {FEATURES.map((f) => (
             <View key={f.label} className="w-full flex-row items-center gap-3">
-              <View className="size-10 items-center justify-center rounded-xl bg-primary-tint">
+              <View className="size-10 items-center justify-center rounded-xl">
                 <Text className="text-lg">{f.icon}</Text>
               </View>
               <Text className="flex-1 text-sm text-foreground">{f.label}</Text>

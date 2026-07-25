@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { Ban } from "lucide-react-native";
 
 import Button from "@/components/ui/Button";
 import Screen from "@/components/ui/Screen";
@@ -15,8 +16,8 @@ export default function SkipConfirmed() {
       <AppBar title="Order skipped" />
 
       <View className="w-full items-center gap-8 px-6 pt-12">
-        <View className="size-[100px] items-center justify-center rounded-2xl bg-success/[0.12]">
-          <Text className="text-4xl">✅</Text>
+        <View className="size-[100px] items-center justify-center rounded-2xl bg-warning/[0.12]">
+          <Ban size={40} color="#f59e0b" />
         </View>
 
         <View className="items-center gap-1.5">
@@ -32,11 +33,8 @@ export default function SkipConfirmed() {
           <Stepper steps={["Skipped", "Searching", "New order"]} step={1} />
         </View>
 
-        <View className="w-full gap-3.5 pt-11">
+        <View className="w-full pt-11">
           <Button onPress={() => navigation.navigate("HomeOffline")}>Back to home</Button>
-          <Button variant="secondary" size="sm">
-            See skip history
-          </Button>
         </View>
       </View>
     </Screen>

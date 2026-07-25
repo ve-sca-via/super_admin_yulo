@@ -42,7 +42,12 @@ export default function DocumentUploadHub() {
               key={type}
               label={label}
               status={statusFor(type)}
-              onPress={() => navigation.navigate("OnboardingDocumentCapture", { docType: type })}
+              onPress={() =>
+                navigation.navigate(
+                  type === "profile_photo" ? "SelfieCapture" : "OnboardingDocumentCapture",
+                  { docType: type },
+                )
+              }
             />
           ))}
         </View>
@@ -51,7 +56,7 @@ export default function DocumentUploadHub() {
           <Button
             variant={allUploaded ? "default" : "disabled"}
             disabled={!allUploaded}
-            onPress={() => navigation.navigate("OnboardingStatus")}
+            onPress={() => navigation.navigate("OnboardingVehicleDetails")}
           >
             Continue
           </Button>

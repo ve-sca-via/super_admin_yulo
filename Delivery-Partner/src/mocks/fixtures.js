@@ -77,6 +77,59 @@ export const mockOrders = {
   },
 };
 
+// Personal/vehicle/bank fields shown on the onboarding wizard (Flow 1 —
+// Personal Information / Vehicle Details / Bank & Payment steps) and reused
+// read-only on the matching Profile screens (Flow 6) — the Figma designs use
+// identical field sets and sample values in both places.
+export const mockPersonalInfo = {
+  fullName: "Raju Kumar",
+  email: "raju.k@email.com",
+  mobileNumber: "+91 98765 43210",
+  emergencyContact: "+91 91234 56780",
+  dob: "14 Aug 1996",
+  gender: "male",
+  aadhaarNumber: "4521 8890 3345",
+  panNumber: "BXKPK1234F",
+};
+
+export const VEHICLE_TYPES = [
+  { value: "2w", label: "2 Wheeler" },
+  { value: "ev_2w", label: "EV 2 Wheeler" },
+  { value: "non_rto_ev", label: "Non RTO EV" },
+];
+
+export const mockVehicle = {
+  type: "2w",
+  model: "Honda Activa 6G",
+  registrationNumber: "KA 05 AB 1234",
+  rcNumber: "KA05202201234567",
+  insuranceProvider: "ICICI Lombard",
+  insurancePolicyNumber: "ICL-99887766",
+  insuranceValidTill: "Valid till 12 Mar 2027",
+};
+
+export const ACCOUNT_TYPES = [
+  { value: "savings", label: "Savings" },
+  { value: "current", label: "Current" },
+  { value: "salaried", label: "Salaried" },
+];
+
+export const PAYMENT_PREFERENCES = [
+  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "upi", label: "UPI" },
+];
+
+export const mockBankDetails = {
+  bankName: "State Bank of India",
+  accountHolderName: "Raju Kumar",
+  accountNumber: "XXXXXXXX3210",
+  accountType: "savings",
+  ifsc: "SBIN0001234",
+  branchName: "Koramangala Branch",
+  upiId: "raju.kumar@okicici",
+  paymentPreference: "bank_transfer",
+};
+
 export const SKIP_REASONS = [
   "Restaurant too far",
   "Drop location too far",

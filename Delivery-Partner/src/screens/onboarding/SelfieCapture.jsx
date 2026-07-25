@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { View } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 
 import Button from "@/components/ui/Button";
@@ -8,26 +8,19 @@ import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import AppBar from "@/components/partner/AppBar";
 import { useOnboarding } from "@/context/OnboardingContext";
-import { DOCUMENT_TYPES } from "@/mocks/fixtures";
 
-const GUIDELINES = [
-  "Good lighting, avoid glare and shadows",
-  "All four corners inside the frame",
-  "Text sharp and readable",
-];
+// Figma "22 – Selfie Capture" only calls for a single guideline row (vs. the
+// three shown on "21 – Document Capture") — see node 464:1547.
+const GUIDELINES = ["Good lighting, avoid glare and shadows"];
 
-export default function DocumentCapture() {
+export default function SelfieCapture() {
   const navigation = useNavigation();
-  const { params } = useRoute();
-  const { docType } = params;
   const { markDocumentUploaded } = useOnboarding();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  const label = DOCUMENT_TYPES.find((d) => d.type === docType)?.label ?? "Document";
-
   function complete() {
-    markDocumentUploaded(docType);
+    markDocumentUploaded("profile_photo");
     navigation.goBack();
   }
 
@@ -35,11 +28,14 @@ export default function DocumentCapture() {
     setError(null);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      setError("Camera permission is needed to capture your document.");
+      setError("Camera permission is needed to capture your selfie.");
       return;
     }
     setBusy(true);
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.7,
+      cameraType: ImagePicker.CameraType.front,
+    });
     setBusy(false);
     if (!result.canceled) complete();
   }
@@ -48,7 +44,7 @@ export default function DocumentCapture() {
     setError(null);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      setError("Photo library permission is needed to upload your document.");
+      setError("Photo library permission is needed to upload your selfie.");
       return;
     }
     setBusy(true);
@@ -59,13 +55,13 @@ export default function DocumentCapture() {
 
   return (
     <Screen>
-      <AppBar title={`Upload · ${label}`} />
+      <AppBar title="Upload · Your selfie" />
 
       <View className="w-full gap-4 px-6 pt-2">
         <View className="h-[392px] w-full items-center justify-center gap-[18px] rounded-[20px] bg-[#1a1a1a] p-6">
-          <View className="h-[158px] w-[250px] rounded-[14px] border-2 border-dashed border-primary" />
+          <View className="size-[220px] rounded-full border-2 border-dashed border-primary" />
           <Text className="text-center font-jakarta-medium text-sm text-[#e8e2d9]">
-            Align your {label.toLowerCase()} within the frame
+            Align your face within the frame
           </Text>
         </View>
 

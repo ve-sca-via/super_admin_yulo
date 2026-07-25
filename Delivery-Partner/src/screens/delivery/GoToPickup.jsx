@@ -1,11 +1,12 @@
 import NavigationScreen from "./NavigationScreen";
 
 function handleArrive(navigation, order, orderKey) {
-  // Only veg orders get the checkpoint verification step — matches
-  // FleetBadgeInfo's "Veg handling certification" promise; standard orders
-  // go straight to navigating to the customer.
-  const next = order.fleetType === "veg" ? "DeliveryVegCheckpoint" : "DeliveryNavigate";
-  navigation.navigate(next, { orderKey });
+  // Both veg and standard orders pass through the at-restaurant checkpoint
+  // (order items + pickup OTP) — matches Figma's "14 – Veg Checkpoint" and
+  // "14 – Regular order Checkpoint" frames. Only veg orders additionally see
+  // the packaging-verification checklist there; see VegCheckpoint.jsx's
+  // `isVeg` branch.
+  navigation.navigate("DeliveryVegCheckpoint", { orderKey });
 }
 
 export default function GoToPickup() {
