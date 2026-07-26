@@ -94,5 +94,24 @@ export const listOrders = asyncHandler(async (req, res) => {
 export const getOrder = asyncHandler(async (req, res) => {
   const order = await Order.findOne({ _id: req.params.id, userId: req.user._id }).lean();
   if (!order) throw new ApiError(404, 'NOT_FOUND', 'Order not found');
+
+  // pickupOtp's only surface to the customer: no SMS/push channel exists anywhere in this
+  // codebase (notify.service.js is Socket.IO-room-only), so this tracking-screen response is
+  // where they read the code to hand to their delivery partner. Only shown while it's still
+  // useful (assigned, not yet verified) — and the rest of deliveryAssignment's internal
+  // offer-routing bookkeeping (offeredTo/offerStatus/offerExpiresAt/history — other partners'
+  // rejection reasons, etc.) is deliberately NOT passed through here, unlike the fields that
+  // were already exposed before this change.
+  if (order.deliveryAssignment) {
+    const { partnerId, status, assignedAt, pickupOtp, pickupOtpVerifiedAt } = order.deliveryAssignment;
+    order.deliveryAssignment = {
+      partnerId,
+      status,
+      assignedAt,
+      pickupOtpVerifiedAt,
+      pickupOtp: status === 'assigned' && !pickupOtpVerifiedAt ? pickupOtp : undefined,
+    };
+  }
+
   sendSuccess(res, 200, 'Order', { order });
 });

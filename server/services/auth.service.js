@@ -28,6 +28,30 @@ export const generateStaffToken = (staffId, role, restaurantId) =>
     expiresIn: env.JWT_STAFF_EXPIRES,
   });
 
+// Partner tokens are access+refresh (unlike staff's single token) because the mobile app needs
+// long-lived sessions without repeating an OTP login. RN has no cookie jar (see the comment in
+// Delivery-Partner/src/api/client.js), so unlike the customer/owner refresh token, the partner
+// refresh token is returned in the JSON body for the client to store in SecureStore — it is
+// never set as a cookie.
+export const generatePartnerTokens = (partnerId) => {
+  const accessToken = jwt.sign(
+    { partnerId },
+    env.JWT_PARTNER_SECRET,
+    { expiresIn: env.JWT_PARTNER_ACCESS_EXPIRES }
+  );
+  const refreshToken = jwt.sign(
+    { partnerId },
+    env.JWT_PARTNER_SECRET,
+    { expiresIn: env.JWT_PARTNER_REFRESH_EXPIRES }
+  );
+  return { accessToken, refreshToken };
+};
+
+export const generatePartnerAccessToken = (partnerId) =>
+  jwt.sign({ partnerId }, env.JWT_PARTNER_SECRET, {
+    expiresIn: env.JWT_PARTNER_ACCESS_EXPIRES,
+  });
+
 export const blacklistToken = async (token) => {
   const decoded = jwt.decode(token);
   if (!decoded?.exp) return;

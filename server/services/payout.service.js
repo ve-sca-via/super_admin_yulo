@@ -16,8 +16,19 @@ export const getPlatformPayoutTotal = async ({ from, to }) => {
   return result?.total ?? 0;
 };
 
+// 'today' added for services/earnings.service.js's partner-facing GET /api/partner/earnings
+// (Delivery-Partner's Earnings.jsx has a Today tab that this Payout-oriented function never
+// needed before) — reused here rather than reimplemented, per weekly/monthly's own existing
+// convention below.
 export const getCurrentPeriod = (periodType = 'weekly') => {
   const now = new Date();
+  if (periodType === 'today') {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
   if (periodType === 'monthly') {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -36,6 +47,18 @@ export const getCurrentPeriod = (periodType = 'weekly') => {
 
 // Computed-on-read + upserted (no scheduler/cron exists in this codebase). Never clobbers
 // admin-entered incentives/deductions on an existing doc for the same period.
+//
+// grossEarnings here (deliveriesCount * perDeliveryRate) is deliberately NOT changed to sum
+// services/earnings.service.js's itemized per-order earningsBreakdown instead, even though that
+// breakdown now exists (see Order.deliveryAssignment.earningsBreakdown). This IS the authoritative,
+// actually-paid amount — perDeliveryRate is the one admin-configured, funded rate in this system.
+// The itemized breakdown's basePay component always equals this exactly (same rate, same
+// delivered-in-period order set), so the two views never drift on the part that's real money.
+// Its extra distancePay (and always-zero surgePay/tip/penalty placeholders) are NOT folded in
+// here because there's no admin-approved rate/engine backing them as an actual payout
+// commitment — see the comment on finance.config.js's perKmRate. A partner's own earnings view
+// will therefore show totalEarned >= this grossEarnings; that gap is the informational estimate,
+// not money currently owed.
 export const ensurePayoutForPeriod = async (partnerId, periodType) => {
   const { start, end } = getCurrentPeriod(periodType);
 

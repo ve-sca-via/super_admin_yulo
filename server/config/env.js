@@ -9,9 +9,12 @@ const schema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_STAFF_SECRET: z.string().min(32),
+  JWT_PARTNER_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRES: z.string().default('15m'),
   JWT_REFRESH_EXPIRES: z.string().default('7d'),
   JWT_STAFF_EXPIRES: z.string().default('8h'),
+  JWT_PARTNER_ACCESS_EXPIRES: z.string().default('15m'),
+  JWT_PARTNER_REFRESH_EXPIRES: z.string().default('30d'),
   CLOUDINARY_URL: z.string().optional(),
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
@@ -25,6 +28,8 @@ const schema = z.object({
   PLATFORM_COMMISSION_PERCENT: z.coerce.number().default(15),
   DELIVERY_PARTNER_PER_DELIVERY_RATE: z.coerce.number().default(30),
   DELIVERY_PARTNER_MAX_CONCURRENT_ORDERS: z.coerce.number().default(1),
+  DELIVERY_OFFER_WINDOW_SECONDS: z.coerce.number().default(20),
+  DELIVERY_PARTNER_PER_KM_RATE: z.coerce.number().default(5),
 });
 
 const result = schema.safeParse(process.env);

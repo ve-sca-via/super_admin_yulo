@@ -13,6 +13,21 @@ export default function TrainingComplete() {
   const navigation = useNavigation();
   const { training } = useOnboarding();
   const { moduleLabel, moduleIndex, totalModules, watchedSeconds } = training;
+  const hasNextModule = moduleIndex < totalModules;
+
+  // Was unconditionally navigating to HomeOffline regardless of whether more modules remained,
+  // even though the label below already computed moduleIndex+1/totalModules correctly. Real
+  // per-module content switching (a different moduleId/label/duration for module 3) needs the
+  // backend's module registry (server/services/training.service.js) wired in — this mock only
+  // ever models one module ("veg-handling"), so continuing re-enters the same screen with the
+  // same moduleId for now; the navigation decision itself (loop back vs. finish) is correct.
+  function handleContinue() {
+    if (hasNextModule) {
+      navigation.navigate("OnboardingTraining", { moduleId: training.moduleId });
+    } else {
+      navigation.navigate("HomeOffline");
+    }
+  }
 
   const rows = [
     { label: "Quiz score", value: "9 / 10" },
@@ -64,8 +79,8 @@ export default function TrainingComplete() {
           </View>
         </View>
 
-        <Button onPress={() => navigation.navigate("HomeOffline")}>
-          Continue to Module {moduleIndex + 1}
+        <Button onPress={handleContinue}>
+          {hasNextModule ? `Continue to Module ${moduleIndex + 1}` : "Done"}
         </Button>
       </View>
 

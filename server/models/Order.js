@@ -55,6 +55,8 @@ const orderSchema = new mongoose.Schema(
     deliveredAt: { type: Date, default: null },
     deliveryAssignment: {
       partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryPartner', default: null },
+      // Set only once a partner ACCEPTS an offer — stays 'unassigned' while an offer is
+      // outstanding (offerStatus below tracks that in-flight state instead).
       status: {
         type: String,
         enum: ['unassigned', 'assigned', 'picked_up', 'delivered', 'failed'],
@@ -62,6 +64,44 @@ const orderSchema = new mongoose.Schema(
       },
       assignedAt: { type: Date },
       assignedBy: { type: String, enum: ['auto', 'admin'] },
+      // Pending-offer state (see services/deliveryAssignment.service.js) — a candidate is
+      // "offered" the order in real time over Socket.IO and has offerExpiresAt to accept/reject
+      // before it's treated as missed and re-offered to the next candidate.
+      offeredTo: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryPartner', default: null },
+      offerExpiresAt: { type: Date, default: null },
+      offerStatus: {
+        type: String,
+        enum: ['none', 'offered', 'accepted', 'rejected', 'expired'],
+        default: 'none',
+      },
+      // Generated on accept (controllers/partner/order.controller.js). No SMS/push channel
+      // exists in this codebase (notify.service.js is Socket.IO-only) — the customer's only
+      // current way to see it is the customer-facing GET /api/orders/:id response, see the
+      // comment on getOrder in controllers/order.controller.js.
+      pickupOtp: { type: String, default: null },
+      pickupOtpVerifiedAt: { type: Date, default: null },
+      // Self-reported at delivery time (CodCollection.jsx has no real payment-gateway/QR
+      // verification today) — codDiscrepancy is set instead of hard-failing the delivery when
+      // it doesn't match `subtotal`; see the comment on deliverOrder for why.
+      codCollected: { type: Number, default: null },
+      codDiscrepancy: { type: Number, default: null },
+      // Computed and frozen once at delivery time (controllers/partner/order.controller.js's
+      // deliverOrder) — never recomputed afterward, so a partner's historical earnings don't
+      // shift if rates change later. distanceKm is the actual haversine figure used for
+      // distancePay, stored alongside it so the frozen breakdown is self-consistent rather than
+      // relying on recomputing the same number again later. surgePay/tip/penalty are always 0
+      // today — no surge-pricing engine, tipping mechanism, or penalty-rules engine exists
+      // anywhere in this codebase; see services/earnings.service.js for the full picture of
+      // which of these components are real (funded, reconciled with admin payouts) vs
+      // informational placeholders.
+      earningsBreakdown: {
+        basePay: { type: Number, default: 0 },
+        distanceKm: { type: Number, default: null },
+        distancePay: { type: Number, default: 0 },
+        surgePay: { type: Number, default: 0 },
+        tip: { type: Number, default: 0 },
+        penalty: { type: Number, default: 0 },
+      },
       history: [deliveryAssignmentHistorySchema],
     },
   },

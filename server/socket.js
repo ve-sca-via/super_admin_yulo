@@ -5,6 +5,7 @@ import { redis } from './config/redis.js';
 import Order from './models/Order.js';
 import Restaurant from './models/Restaurant.js';
 import * as liveMonitorService from './services/liveMonitor.service.js';
+import { sweepExpiredOffers } from './services/deliveryAssignment.service.js';
 import logger from './utils/logger.js';
 
 let io;
@@ -20,6 +21,14 @@ const verifyUserToken = (token) => {
 const verifyStaffToken = (token) => {
   try {
     return jwt.verify(token, env.JWT_STAFF_SECRET);
+  } catch {
+    return null;
+  }
+};
+
+const verifyPartnerToken = (token) => {
+  try {
+    return jwt.verify(token, env.JWT_PARTNER_SECRET);
   } catch {
     return null;
   }
@@ -66,12 +75,31 @@ export function initSocket(httpServer) {
       socket.join(`order:${orderId}`);
     });
 
+    socket.on('join_partner', async ({ token }) => {
+      const decoded = verifyPartnerToken(token);
+      if (!decoded) return socket.disconnect();
+      socket.join(`partner:${decoded.partnerId}`);
+      socket.data.partnerId = decoded.partnerId;
+      // Presence registry for auto-assignment eligibility — a partner must be actually
+      // reachable over a socket to receive an order offer. Mirrors join_restaurant's
+      // live:active_restaurants pattern below. deliveryAssignment.service.js (a later step)
+      // reads this set to filter candidates, and emits offers into this same
+      // `partner:{partnerId}` room.
+      await redis.sadd('live:active_partners', decoded.partnerId);
+    });
+
     socket.on('disconnect', async (reason) => {
       logger.debug({ socketId: socket.id, reason }, 'socket disconnected');
       if (socket.data.restaurantId) {
         const room = io.sockets.adapter.rooms.get(`restaurant:${socket.data.restaurantId}`);
         if (!room || room.size === 0) {
           await redis.srem('live:active_restaurants', socket.data.restaurantId);
+        }
+      }
+      if (socket.data.partnerId) {
+        const room = io.sockets.adapter.rooms.get(`partner:${socket.data.partnerId}`);
+        if (!room || room.size === 0) {
+          await redis.srem('live:active_partners', socket.data.partnerId);
         }
       }
     });
@@ -84,6 +112,14 @@ export function initSocket(httpServer) {
       io.to(`restaurant:${restaurantId}`).emit('live_visitor_update', stats);
     }
   }, 30_000);
+
+  // Catches order offers nobody ever "touches" again (app closed mid-offer, etc.) — see the
+  // file-level comment above expireIfStale in deliveryAssignment.service.js for why a lazy
+  // on-read check alone isn't sufficient. 5s keeps reassignment latency reasonably tight
+  // against a ~20s offer window without excessive DB load.
+  setInterval(() => {
+    sweepExpiredOffers().catch((err) => logger.error({ err }, 'sweepExpiredOffers failed'));
+  }, 5_000);
 }
 
 export const getIO = () => {

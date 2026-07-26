@@ -15,6 +15,7 @@ import reviewRoutes from './routes/review.routes.js';
 import ownerRouter from './routes/owner/index.js';
 import staffRouter from './routes/staff/index.js';
 import adminRouter from './routes/admin/index.js';
+import partnerRouter from './routes/partner/index.js';
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/owner', ownerRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/staff', staffRouter);
+app.use('/api/partner', partnerRouter);
 
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 

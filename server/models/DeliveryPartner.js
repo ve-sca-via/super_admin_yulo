@@ -13,16 +13,36 @@ const deliveryPartnerDocumentSchema = new mongoose.Schema(
       ],
     },
     url: { type: String },
+    // Per-document review state, set by admin (see controllers/admin/deliveryPartner.controller.js's
+    // verifyDocument) — mirrors Restaurant's restaurantDocumentSchema.status. Defaults to 'pending'
+    // on every new/replaced upload (Step 3's onboarding.controller.js relies on this default so a
+    // resubmitted document automatically needs fresh review rather than inheriting the old verdict).
+    status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
     uploadedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const completedTrainingModuleSchema = new mongoose.Schema(
+  {
+    moduleId: { type: String, required: true },
+    quizScore: { type: Number, required: true },
+    completedAt: { type: Date, default: Date.now },
   },
   { _id: false }
 );
 
 const deliveryPartnerSchema = new mongoose.Schema(
   {
-    fullName: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    phone: { type: String, required: true },
+    // Not required at the schema level: a partner created via OTP self-registration
+    // (see controllers/partner/auth.controller.js) starts with only `phone` set — fullName/email
+    // are submitted later during onboarding. Admin-created partners still require both; that's
+    // enforced explicitly in controllers/admin/deliveryPartner.controller.js's `create`, since it
+    // no longer gets that check for free from this schema.
+    fullName: { type: String, trim: true },
+    email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
+    // Login identifier for the partner-facing app (OTP is sent to this number) — must be unique.
+    phone: { type: String, required: true, unique: true },
     dateOfBirth: { type: Date },
     gender: { type: String, enum: ['male', 'female', 'other'] },
     emergencyPhone: { type: String },
@@ -47,14 +67,71 @@ const deliveryPartnerSchema = new mongoose.Schema(
       branchName: { type: String },
       upiId: { type: String },
     },
+    // DUTY/ELIGIBILITY status — whether this partner is currently on-duty and eligible for
+    // auto-assignment (see services/deliveryAssignment.service.js). This is NOT the KYC/document
+    // verification state; that's tracked separately by `verificationStatus` below. A partner
+    // must not be allowed to set this to 'active' unless verificationStatus === 'approved' — that
+    // guard belongs in the duty-toggle endpoint (POST /api/partner/duty/toggle, added in a later
+    // step), not here, since going on/off duty is a partner action while this schema only stores
+    // the result.
     status: { type: String, enum: ['active', 'busy', 'inactive', 'suspended'], default: 'active' },
+    // KYC/onboarding verification state, independent of duty status above.
+    verificationStatus: {
+      type: String,
+      enum: ['pending_documents', 'under_review', 'approved', 'rejected', 'resubmission_required'],
+      default: 'pending_documents',
+    },
+    // Admin's reason on rejection or resubmission request.
+    verificationNotes: { type: String },
+    verifiedAt: { type: Date },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    fleetType: { type: String, enum: ['veg', 'standard'], default: 'standard' },
+    // Single flat in-progress state, not per-module records — OnboardingContext.jsx's single
+    // `training` object (not a map/array) confirms a partner only ever has ONE current module in
+    // flight, never concurrent tracks. The ordered module list itself (ids/labels/durations)
+    // lives in services/training.service.js, not here — currentModuleId is null until training
+    // starts, at which point the service lazily treats null as "the first module" (same
+    // compute-on-read convention as payout.service.js's ensurePayoutForPeriod).
+    training: {
+      currentModuleId: { type: String, default: null },
+      watchedSeconds: { type: Number, default: 0 },
+      completedModules: [completedTrainingModuleSchema],
+      lastQuizScore: { type: Number, default: null },
+      certificateStatus: { type: String, enum: ['pending', 'issued'], default: 'pending' },
+    },
+    // Field list matches Delivery-Partner/src/screens/profile/Notifications.jsx's toggle rows
+    // exactly (orders/payments/promotions/appUpdates/soundVibration) — all default true, same as
+    // that screen's local useState(true) per row.
+    notificationPreferences: {
+      orders: { type: Boolean, default: true },
+      payments: { type: Boolean, default: true },
+      promotions: { type: Boolean, default: true },
+      appUpdates: { type: Boolean, default: true },
+      soundVibration: { type: Boolean, default: true },
+    },
     rating: { type: Number, default: 0, min: 0, max: 5 },
     totalDeliveries: { type: Number, default: 0 },
     joinedOn: { type: Date, default: Date.now },
+    // Deliberately no schema-level default on `type` (unlike Restaurant.location, which always
+    // has real coordinates from creation) — a fresh partner has never sent a location ping, and
+    // defaulting `type` to 'Point' while `coordinates` stays unset would persist a partial,
+    // invalid GeoJSON value the moment any other field on this document is saved, which a
+    // 2dsphere index rejects. Left fully unset until POST /api/partner/location sets both
+    // fields together, atomically (see controllers/partner/location.controller.js).
+    currentLocation: {
+      type: { type: String, enum: ['Point'] },
+      coordinates: { type: [Number] },
+    },
+    // Separate from currentLocation itself so staleness can be checked without re-deriving it
+    // from an update timestamp on the whole document (other fields change far more often than
+    // location does) — see services/geo.service.js's isLocationFresh.
+    currentLocationUpdatedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
 deliveryPartnerSchema.index({ status: 1 });
+deliveryPartnerSchema.index({ verificationStatus: 1 });
+deliveryPartnerSchema.index({ currentLocation: '2dsphere' });
 
 export default mongoose.model('DeliveryPartner', deliveryPartnerSchema);

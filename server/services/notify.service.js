@@ -1,5 +1,12 @@
 import { getIO } from '../socket.js';
 
+// Partner presence (like restaurant presence before it) is tracked directly in socket.js's
+// join_partner/disconnect handlers via a Redis set (live:active_partners), not delegated through
+// this file — this module only emits to already-joined rooms, it doesn't own connection
+// bookkeeping, and restaurant presence already established that convention (see
+// live:active_restaurants in socket.js, not here). No partnerConnected/partnerDisconnected stub
+// is added for the same reason there's no restaurantConnected/restaurantDisconnected one today.
+
 export const notifyService = {
   newOrder(order) {
     const io = getIO();
