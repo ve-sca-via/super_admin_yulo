@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/Button";
 import Screen from "@/components/ui/Screen";
@@ -11,6 +12,7 @@ import client from "@/api/client";
 export default function CodCollection() {
   const navigation = useNavigation();
   const { params } = useRoute();
+  const queryClient = useQueryClient();
   const order = params?.order;
   const [cashReceived, setCashReceived] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -32,6 +34,11 @@ export default function CodCollection() {
       // deliverOrder's codDiscrepancy comment), so this always reports the known order amount
       // rather than a separately-typed figure the partner could get wrong by typo.
       await client.post(`/partner/orders/${order.orderId}/deliver`, { codCollected: order.codAmount });
+      // Home.jsx's earnings/cash-in-hand queries fetch once (before this delivery even happened)
+      // and sit on a 60s staleTime — without this, Earnings.jsx and PaymentReceived.jsx (which
+      // share those exact query keys) would keep painting that stale pre-delivery snapshot instead
+      // of this order's real payout for up to a minute.
+      queryClient.invalidateQueries({ queryKey: ["partner", "earnings"] });
       navigation.navigate("DeliveryPaymentReceived", { order });
     } catch (err) {
       setError(err.message);

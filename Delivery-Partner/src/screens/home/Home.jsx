@@ -11,7 +11,6 @@ import { formatClock } from "@/lib/format";
 import client from "@/api/client";
 import { connectPartnerSocket, disconnectPartnerSocket } from "@/lib/partnerSocket";
 import { startLocationPings, stopLocationPings } from "@/lib/locationPings";
-import { usePartnerAuth } from "@/context/PartnerAuthContext";
 
 // The bonus/incentive-target card below (🎯 "N more orders before 3 PM → ₹X bonus") has no
 // backend concept behind it anywhere in this codebase — no incentive-program endpoint, no target
@@ -48,8 +47,6 @@ function DemandHeatmap() {
 
 export default function Home() {
   const navigation = useNavigation();
-  const { user } = usePartnerAuth();
-  const firstName = user?.fullName?.split(" ")[0];
 
   // null = not hydrated yet from the backend's real duty status; deliberately not defaulting to
   // false/offline, since a partner who force-quit the app while online should reopen it and see
@@ -194,6 +191,10 @@ export default function Home() {
   });
   const fleetType = profileData?.partner?.fleetType;
   const fleetLabel = fleetType === "veg" ? "Veg-Only Fleet" : "Standard Fleet";
+  // Sourced from this same profile fetch, not usePartnerAuth()'s `user` — that's only ever set
+  // once at login (verifyOtp()) and never refreshed, so it still held the pre-onboarding blank
+  // name for the rest of the session even after PersonalInformation.jsx saved the real name.
+  const firstName = profileData?.partner?.fullName?.split(" ")[0];
 
   return (
     <Screen edges={["top", "bottom"]}>
