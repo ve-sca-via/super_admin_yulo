@@ -35,8 +35,12 @@ const verifyPartnerToken = (token) => {
 };
 
 export function initSocket(httpServer) {
+  // Same fix as app.js's cors() call: ALLOWED_ORIGINS=* must become `true` (dynamic reflection),
+  // not the literal array ['*'], which Socket.IO's own engine.io CORS layer would never match
+  // against a real browser's Origin header either.
+  const allowedOrigins = env.ALLOWED_ORIGINS.split(',').map((o) => o.trim());
   io = new Server(httpServer, {
-    cors: { origin: env.ALLOWED_ORIGINS.split(','), credentials: true },
+    cors: { origin: allowedOrigins.includes('*') ? true : allowedOrigins, credentials: true },
   });
 
   io.on('connection', (socket) => {

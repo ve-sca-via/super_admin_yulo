@@ -12,7 +12,14 @@ import { DOCUMENT_TYPES } from "@/mocks/fixtures";
 
 export default function DocumentUploadHub() {
   const navigation = useNavigation();
-  const { documents, uploadedCount, totalDocuments, nextDocType } = useOnboarding();
+  const {
+    documents,
+    uploadedCount,
+    totalDocuments,
+    nextDocType,
+    onboardingStatusError,
+    refreshOnboardingStatus,
+  } = useOnboarding();
 
   const allUploaded = uploadedCount === totalDocuments;
 
@@ -28,6 +35,15 @@ export default function DocumentUploadHub() {
 
       <ScrollView className="w-full px-6 pt-2" contentContainerClassName="gap-3 pb-6">
         <Text className="text-sm text-muted-foreground">Verification takes up to 24 hours</Text>
+
+        {onboardingStatusError && (
+          <Text
+            className="text-center text-sm text-destructive"
+            onPress={() => refreshOnboardingStatus()}
+          >
+            Couldn&rsquo;t refresh document status — tap to retry
+          </Text>
+        )}
 
         <View className="gap-2">
           <ProgressBar value={(uploadedCount / totalDocuments) * 100} />

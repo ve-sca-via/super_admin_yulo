@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
@@ -6,14 +6,39 @@ import Button from "@/components/ui/Button";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import AppBar from "@/components/partner/AppBar";
-import { mockOrders } from "@/mocks/fixtures";
+import client from "@/api/client";
 
 export default function CodCollection() {
   const navigation = useNavigation();
   const { params } = useRoute();
-  const orderKey = params?.orderKey ?? "standard";
-  const order = mockOrders[orderKey];
+  const order = params?.order;
   const [cashReceived, setCashReceived] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!order) navigation.navigate("HomeOffline");
+  }, [order, navigation]);
+
+  if (!order) return null;
+
+  async function handleConfirmDelivery() {
+    if (!cashReceived || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      // The "Mark cash received" toggle above is the only input here by design — the backend
+      // deliberately doesn't hard-validate the collected amount against order.codAmount (see
+      // deliverOrder's codDiscrepancy comment), so this always reports the known order amount
+      // rather than a separately-typed figure the partner could get wrong by typo.
+      await client.post(`/partner/orders/${order.orderId}/deliver`, { codCollected: order.codAmount });
+      navigation.navigate("DeliveryPaymentReceived", { order });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Screen>
@@ -25,7 +50,7 @@ export default function CodCollection() {
             Amount to collect (COD)
           </Text>
           <Text className="font-jakarta-bold text-[36px] leading-[45px] text-foreground">
-            ₹{order.dropoffAmount.toFixed(2)}
+            ₹{order.codAmount.toFixed(2)}
           </Text>
         </View>
 
@@ -51,12 +76,15 @@ export default function CodCollection() {
         >
           {cashReceived ? "Cash received ✓" : "Mark cash received"}
         </Button>
+
+        {error && <Text className="text-center text-sm text-destructive">{error}</Text>}
+
         <Button
           variant={cashReceived ? "default" : "disabled"}
-          disabled={!cashReceived}
-          onPress={() => navigation.navigate("DeliveryPaymentReceived", { orderKey })}
+          disabled={!cashReceived || submitting}
+          onPress={handleConfirmDelivery}
         >
-          Confirm delivery
+          {submitting ? "Confirming…" : "Confirm delivery"}
         </Button>
       </View>
     </Screen>

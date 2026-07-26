@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { MapPin } from "lucide-react-native";
 
 import Button from "@/components/ui/Button";
 import Text from "@/components/ui/Text";
 import BottomNav from "@/components/partner/BottomNav";
-import { mockOrders } from "@/mocks/fixtures";
+import client from "@/api/client";
 
 const MAP_BG = { veg: "#0d1a0d", standard: "#0d0d1f" };
+
+// pickupKm/totalKm are null whenever the partner has no fresh location ping on file (see
+// buildOfferPayload) — true for every partner right now, since expo-location pings aren't wired
+// until a later step. Showing the literal string "null km" would be a real, visible regression
+// the moment real orders replace the mocks (which always had numbers here).
+const formatKm = (km) => (km == null ? "—" : `${km} km`);
 
 function MetricCell({ label, value }) {
   return (
@@ -21,34 +28,72 @@ function MetricCell({ label, value }) {
 export default function IncomingOrder() {
   const navigation = useNavigation();
   const { params } = useRoute();
-  const orderKey = params?.orderKey ?? "standard";
-  const order = mockOrders[orderKey];
-  const isVeg = order.fleetType === "veg";
+  // `params` IS the real order object now (orderId, restaurantName, fleetType, ... — the exact
+  // shape server/services/deliveryAssignment.service.js's buildOfferPayload produces), pushed
+  // either by the order_offer socket event or a GET /partner/orders/current resume. Reached with
+  // no order at all (e.g. the bottom-nav Orders tab tapped with nothing pending) — bail to Home
+  // rather than crash on order.fleetType below.
+  const order = params?.orderId ? params : null;
 
-  const [secondsLeft, setSecondsLeft] = useState(order.countdownSeconds);
+  const [secondsLeft, setSecondsLeft] = useState(order?.countdownSeconds ?? 0);
+  const [accepting, setAccepting] = useState(false);
+  const [error, setError] = useState(null);
   const skippedRef = useRef(false);
 
+  useEffect(() => {
+    if (!order) navigation.navigate("HomeOffline");
+  }, [order, navigation]);
+
+  // Explicit "Skip" tap — goes through the reason picker, which calls the real reject API.
   function handleSkip() {
     if (skippedRef.current) return;
     skippedRef.current = true;
-    navigation.navigate("OrdersReject", { orderKey });
+    navigation.navigate("OrdersReject", { orderId: order.orderId });
+  }
+
+  // Countdown reaching 0 — the backend's own periodic sweep (server/socket.js's
+  // sweepExpiredOffers) already expires and reassigns this offer server-side within ~5s
+  // regardless of what the client does, so there's nothing to tell it here. Distinct from
+  // handleSkip: no reason to collect, so this skips the picker sheet entirely.
+  function handleTimeout() {
+    if (skippedRef.current) return;
+    skippedRef.current = true;
+    navigation.navigate("OrdersSkipConfirmed");
   }
 
   useEffect(() => {
-    if (skippedRef.current) return; // already accepted/skipped — stop ticking
+    if (!order || skippedRef.current) return; // already accepted/skipped, or nothing to count down
     if (secondsLeft <= 0) {
-      handleSkip(); // missed the offer — treated the same as a skip, no penalty
+      handleTimeout();
       return;
     }
     const id = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft]);
+  }, [secondsLeft, order]);
 
-  function handleAccept() {
-    skippedRef.current = true;
-    navigation.navigate("DeliveryPickup", { orderKey });
+  async function handleAccept() {
+    if (skippedRef.current || accepting) return;
+    setAccepting(true);
+    setError(null);
+    try {
+      await client.post(`/partner/orders/${order.orderId}/accept`);
+      skippedRef.current = true;
+      navigation.navigate("DeliveryPickup", { order });
+    } catch (err) {
+      if (err.code === "OFFER_EXPIRED" || err.code === "NOT_YOUR_OFFER") {
+        skippedRef.current = true;
+        navigation.navigate("HomeOffline");
+      } else {
+        setError(err.message);
+        setAccepting(false);
+      }
+    }
   }
+
+  if (!order) return null;
+
+  const isVeg = order.fleetType === "veg";
 
   return (
     <View className="flex-1 bg-background">
@@ -98,11 +143,11 @@ export default function IncomingOrder() {
         )}
 
         <View className="w-full flex-row items-center pt-0.5">
-          <MetricCell label="Pickup" value={`${order.pickupKm} km`} />
+          <MetricCell label="Pickup" value={formatKm(order.pickupKm)} />
           <View className="h-8 w-px bg-border" />
-          <MetricCell label="Drop" value={`${order.dropKm} km`} />
+          <MetricCell label="Drop" value={formatKm(order.dropKm)} />
           <View className="h-8 w-px bg-border" />
-          <MetricCell label="Total" value={`${order.totalKm} km`} />
+          <MetricCell label="Total" value={formatKm(order.totalKm)} />
         </View>
 
         <View className="h-[52px] w-full flex-row items-center gap-2 rounded-[20px] bg-primary-tint px-4">
@@ -112,11 +157,13 @@ export default function IncomingOrder() {
           </Text>
         </View>
 
+        {error && <Text className="text-center text-sm text-destructive">{error}</Text>}
+
         <View className="w-full flex-row items-center gap-3 pt-2">
-          <Button className="flex-1" onPress={handleAccept}>
-            Accept
+          <Button className="flex-1" disabled={accepting} onPress={handleAccept}>
+            {accepting ? "Accepting…" : "Accept"}
           </Button>
-          <Button className="flex-1" variant="secondary" onPress={handleSkip}>
+          <Button className="flex-1" variant="secondary" disabled={accepting} onPress={handleSkip}>
             Skip
           </Button>
         </View>

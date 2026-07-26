@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -8,7 +9,8 @@ import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import AppBar from "@/components/partner/AppBar";
 import { cn } from "@/lib/utils";
-import { mockPersonalInfo } from "@/mocks/fixtures";
+import client from "@/api/client";
+import { usePartnerAuth } from "@/context/PartnerAuthContext";
 
 const GENDERS = [
   { value: "male", label: "Male" },
@@ -58,13 +60,75 @@ function SegmentedControl({ options, value, onChange }) {
 
 export default function PersonalInformation() {
   const navigation = useNavigation();
-  const [fullName, setFullName] = useState(mockPersonalInfo.fullName);
-  const [email, setEmail] = useState(mockPersonalInfo.email);
-  const [mobileNumber, setMobileNumber] = useState(mockPersonalInfo.mobileNumber);
-  const [dob, setDob] = useState(mockPersonalInfo.dob);
-  const [gender, setGender] = useState(mockPersonalInfo.gender);
-  const [aadhaarNumber, setAadhaarNumber] = useState(mockPersonalInfo.aadhaarNumber);
-  const [panNumber, setPanNumber] = useState(mockPersonalInfo.panNumber);
+  const { params } = useRoute();
+  // Reused as a post-approval edit form from Profile > Personal Details' "Request changes" —
+  // backend Step 11's KYC-re-review design assumes editing here after approval, not just during
+  // onboarding. When reached that way, return to Profile instead of advancing the onboarding
+  // stack forward.
+  const fromProfile = params?.fromProfile === true;
+  const { user } = usePartnerAuth();
+  const queryClient = useQueryClient();
+  // Real, already-submitted data if any exists (a partner resuming onboarding after leaving
+  // mid-flow) — hydrated below once it loads, rather than starting from a stranger's mock name.
+  const { data: profile, isError: profileError, refetch: refetchProfile } = useQuery({
+    queryKey: ["partner", "profile"],
+    queryFn: () => client.get("/partner/profile"),
+  });
+  const partner = profile?.partner;
+
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [dob, setDob] = useState("");
+  const [gender, setGender] = useState("male");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [aadharNumber, setAadharNumber] = useState("");
+  const [panNumber, setPanNumber] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!partner) return;
+    setFullName(partner.fullName ?? "");
+    setEmail(partner.email ?? "");
+    setDob(partner.dateOfBirth ? new Date(partner.dateOfBirth).toDateString() : "");
+    setGender(partner.gender ?? "male");
+    setEmergencyPhone(partner.emergencyPhone ?? "");
+    setAadharNumber(partner.aadharNumber ?? "");
+    setPanNumber(partner.panNumber ?? "");
+  }, [partner]);
+
+  async function handleSubmit() {
+    // If the hydrate fetch above failed, `partner` (and every field seeded from it) would be
+    // blank while the partner's REAL saved data is untouched server-side — submitting anyway
+    // would silently overwrite it with empty strings. Block rather than risk that.
+    if (profileError) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await client.patch("/partner/onboarding/personal", {
+        fullName,
+        email,
+        dateOfBirth: dob || undefined,
+        gender,
+        emergencyPhone,
+        aadharNumber,
+        panNumber,
+      });
+      // Without this, Profile's PersonalDetails/Profile screens (which read this same query key)
+      // would keep showing the pre-edit values for up to staleTime (60s) after returning —
+      // confirmed live: the PATCH itself succeeds, but the UI doesn't reflect it.
+      queryClient.invalidateQueries({ queryKey: ["partner", "profile"] });
+      if (fromProfile) {
+        navigation.goBack();
+      } else {
+        navigation.navigate("OnboardingDocuments");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Screen>
@@ -95,12 +159,13 @@ export default function PersonalInformation() {
         </Field>
 
         <Field label="Mobile number">
-          <Input
-            value={mobileNumber}
-            onChangeText={setMobileNumber}
-            keyboardType="phone-pad"
-            className="rounded-2xl"
-          />
+          {/* Read-only: this is the OTP-verified login identifier (unique, set at signup) — the
+              backend's onboarding/personal endpoint deliberately doesn't accept changing it here.
+              Showing it as freely editable when nothing submitted here would ever persist a
+              change would be misleading. */}
+          <View className="h-12 justify-center rounded-2xl border border-border bg-muted px-4">
+            <Text className="text-base text-muted-foreground">+91 {user?.phone ?? "—"}</Text>
+          </View>
         </Field>
 
         <Field label="Date of birth">
@@ -113,8 +178,8 @@ export default function PersonalInformation() {
 
         <Field label="Aadhaar number">
           <Input
-            value={aadhaarNumber}
-            onChangeText={setAadhaarNumber}
+            value={aadharNumber}
+            onChangeText={setAadharNumber}
             keyboardType="number-pad"
             className="rounded-2xl"
           />
@@ -129,9 +194,19 @@ export default function PersonalInformation() {
           />
         </Field>
 
+        {profileError && (
+          <Text className="text-center text-sm text-destructive" onPress={() => refetchProfile()}>
+            Couldn&rsquo;t load your current details — tap to retry before editing
+          </Text>
+        )}
+
         <View className="w-full pt-2">
-          <Button onPress={() => navigation.navigate("OnboardingDocuments")}>Continue</Button>
+          <Button disabled={submitting || profileError} onPress={handleSubmit}>
+            {submitting ? "Saving…" : "Continue"}
+          </Button>
         </View>
+
+        {error && <Text className="text-center text-sm text-destructive">{error}</Text>}
 
         <Text className="text-center text-xs text-muted-foreground">
           Your Aadhaar &amp; PAN are used only for identity verification and background checks.

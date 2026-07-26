@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { USE_MOCKS } from "@/api/config";
-import { setAccessToken } from "@/api/client";
-import { mockPartner } from "@/mocks/fixtures";
+import client, { setAccessToken } from "@/api/client";
+import { getRefreshToken, setRefreshToken, clearRefreshToken } from "@/api/tokenStorage";
+import { disconnectPartnerSocket } from "@/lib/partnerSocket";
+import { stopLocationPings } from "@/lib/locationPings";
 
 const PROFILE_KEY = "yulo_partner_profile";
 
@@ -14,11 +15,33 @@ export function PartnerAuthProvider({ children }) {
   const [pendingPhone, setPendingPhone] = useState(null);
   const [loading, setLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  // Dev-only: the backend only ever includes this when NODE_ENV !== 'production' (see
+  // server/services/otp.service.js) — there's no real SMS provider anywhere in this codebase, so
+  // this is the only way to actually test the OTP flow without one. Never present in prod
+  // responses, so this naturally stays null/unused there.
+  const [devOtp, setDevOtp] = useState(null);
 
   useEffect(() => {
     AsyncStorage.getItem(PROFILE_KEY)
-      .then((raw) => {
-        if (raw) setUser(JSON.parse(raw));
+      .then(async (raw) => {
+        if (!raw) return;
+        const cachedProfile = JSON.parse(raw);
+        // A cached profile with no valid access token yet is a worse first-load experience than
+        // proactively refreshing here — otherwise the user appears "logged in" (profile present)
+        // but the very first real request has to go through Step 1's 401-retry path before
+        // anything actually works.
+        try {
+          const refreshToken = await getRefreshToken();
+          if (!refreshToken) throw new Error("No stored refresh token");
+          const { accessToken } = await client.post("/partner/auth/refresh", { refreshToken });
+          setAccessToken(accessToken);
+          setUser(cachedProfile);
+        } catch {
+          // Refresh token missing/expired/invalid — the cached profile isn't usable without a
+          // live session. Drop it rather than leave the app in a half-authenticated state.
+          await AsyncStorage.removeItem(PROFILE_KEY);
+          await clearRefreshToken();
+        }
       })
       .finally(() => setHydrated(true));
   }, []);
@@ -29,38 +52,54 @@ export function PartnerAuthProvider({ children }) {
     else AsyncStorage.removeItem(PROFILE_KEY);
   }, [user, hydrated]);
 
-  // Real backend has no /api/partner/auth routes yet — this is the seam
-  // where those calls replace the mock branch once they exist.
   const requestOtp = useCallback(async (phone) => {
     setPendingPhone(phone);
-    if (USE_MOCKS) {
-      await new Promise((r) => setTimeout(r, 500));
-      return { phone };
+    const result = await client.post("/partner/auth/request-otp", { phone });
+    if (result.devOtp) {
+      console.log(`[dev] OTP for ${phone}: ${result.devOtp}`);
+      setDevOtp(result.devOtp);
+    } else {
+      setDevOtp(null);
     }
-    throw new Error("Real partner auth API not implemented yet");
+    return result;
   }, []);
 
   const verifyOtp = useCallback(
     async (otp) => {
-      if (USE_MOCKS) {
-        setLoading(true);
-        await new Promise((r) => setTimeout(r, 600));
+      setLoading(true);
+      try {
+        const { partner, accessToken, refreshToken } = await client.post("/partner/auth/verify-otp", {
+          phone: pendingPhone,
+          otp,
+        });
+        setAccessToken(accessToken);
+        await setRefreshToken(refreshToken);
+        setUser(partner);
+        return partner;
+      } finally {
         setLoading(false);
-        if (otp.length !== 6) throw new Error("Enter the 6-digit code");
-        const profile = { ...mockPartner, phone: pendingPhone ?? mockPartner.phone };
-        setAccessToken("mock-partner-token");
-        setUser(profile);
-        return profile;
       }
-      throw new Error("Real partner auth API not implemented yet");
     },
     [pendingPhone],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await client.post("/partner/auth/logout");
+    } catch {
+      // Best-effort — even if this fails (network down, token already invalid), still clear
+      // everything client-side below so the user isn't stuck "logged in" locally.
+    }
+    // Without this, a partner who logs out while online stays joined to their partner:{id}
+    // socket room and counted in the backend's live:active_partners presence set under a
+    // session that's no longer authenticated.
+    disconnectPartnerSocket();
+    stopLocationPings();
     setAccessToken(null);
+    await clearRefreshToken();
     setUser(null);
     setPendingPhone(null);
+    setDevOtp(null);
   }, []);
 
   return (
@@ -70,6 +109,7 @@ export function PartnerAuthProvider({ children }) {
         loading,
         hydrated,
         pendingPhone,
+        devOtp,
         requestOtp,
         verifyOtp,
         logout,

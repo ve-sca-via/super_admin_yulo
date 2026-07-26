@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -8,7 +9,9 @@ import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import AppBar from "@/components/partner/AppBar";
 import { cn } from "@/lib/utils";
-import { ACCOUNT_TYPES, mockBankDetails, PAYMENT_PREFERENCES } from "@/mocks/fixtures";
+import client from "@/api/client";
+import { ACCOUNT_TYPES } from "@/mocks/fixtures";
+import { useOnboarding } from "@/context/OnboardingContext";
 
 function Field({ label, children }) {
   return (
@@ -52,14 +55,92 @@ function SegmentedControl({ options, value, onChange }) {
 
 export default function BankPaymentDetails() {
   const navigation = useNavigation();
-  const [bankName, setBankName] = useState(mockBankDetails.bankName);
-  const [accountHolderName, setAccountHolderName] = useState(mockBankDetails.accountHolderName);
-  const [accountNumber, setAccountNumber] = useState(mockBankDetails.accountNumber);
-  const [accountType, setAccountType] = useState(mockBankDetails.accountType);
-  const [ifsc, setIfsc] = useState(mockBankDetails.ifsc);
-  const [branchName, setBranchName] = useState(mockBankDetails.branchName);
-  const [upiId, setUpiId] = useState(mockBankDetails.upiId);
-  const [paymentPreference, setPaymentPreference] = useState(mockBankDetails.paymentPreference);
+  const { refreshOnboardingStatus } = useOnboarding();
+  const { data: profile, isError: profileError, refetch: refetchProfile } = useQuery({
+    queryKey: ["partner", "profile"],
+    queryFn: () => client.get("/partner/profile"),
+  });
+  const bankDetails = profile?.partner?.bankDetails;
+
+  const [bankName, setBankName] = useState("");
+  const [accountHolderName, setAccountHolderName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountType, setAccountType] = useState(ACCOUNT_TYPES[0].value);
+  const [ifsc, setIfsc] = useState("");
+  const [branchName, setBranchName] = useState("");
+  const [upiId, setUpiId] = useState("");
+  // No `paymentPreference` field — the backend's bankDetails schema doesn't have one (nor any
+  // upiId-as-primary-method concept beyond upiId already being a plain field above). Inventing
+  // one here would just be silently discarded on submit.
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!bankDetails) return;
+    setBankName(bankDetails.bankName ?? "");
+    setAccountHolderName(bankDetails.accountHolderName ?? "");
+    setAccountNumber(bankDetails.accountNumber ?? "");
+    setAccountType(bankDetails.accountType ?? ACCOUNT_TYPES[0].value);
+    setIfsc(bankDetails.ifscCode ?? "");
+    setBranchName(bankDetails.branchName ?? "");
+    setUpiId(bankDetails.upiId ?? "");
+  }, [bankDetails]);
+
+  async function handleSubmit() {
+    // See PersonalInformation.jsx's identical guard — a failed hydrate would leave every field
+    // blank while the partner's real saved bank details are untouched server-side; submitting
+    // anyway would overwrite them with empty strings before submit-for-review even runs.
+    if (profileError) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await client.patch("/partner/onboarding/bank", {
+        bankDetails: {
+          bankName,
+          accountHolderName,
+          accountNumber,
+          accountType,
+          ifscCode: ifsc,
+          branchName,
+          upiId,
+        },
+      });
+
+      // Submit-for-review happens here, not on DocumentUploadHub.jsx — the actual onboarding
+      // stack order is Personal -> Documents -> Vehicle -> Bank, so bank details (the last field
+      // the backend's completeness check requires) aren't set until this screen. Calling submit
+      // right after Documents would always 400 with INCOMPLETE_ONBOARDING.
+      try {
+        await client.post("/partner/onboarding/submit");
+      } catch (submitErr) {
+        // Already under review / already approved just means there's nothing left to submit —
+        // treat as success and move on rather than blocking the partner here.
+        if (submitErr.code !== "ALREADY_UNDER_REVIEW" && submitErr.code !== "ALREADY_APPROVED") {
+          throw submitErr;
+        }
+      }
+
+      // Without this, VerificationStatus.jsx's first render would show the pre-submit cached
+      // status (App.js's QueryClient sets a 60s default staleTime, so a fresh mount otherwise
+      // serves stale "pending_documents" data for up to a minute instead of the just-submitted
+      // "under_review" state) — confirmed live before adding this.
+      refreshOnboardingStatus();
+      navigation.navigate("OnboardingStatus");
+    } catch (err) {
+      if (err.code === "INCOMPLETE_ONBOARDING") {
+        const missing = err.details?.missing ?? [];
+        setError(
+          missing.length > 0
+            ? `Please complete: ${missing.join(", ")}`
+            : "Please complete all onboarding steps before submitting.",
+        );
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Screen>
@@ -113,17 +194,19 @@ export default function BankPaymentDetails() {
           />
         </Field>
 
-        <Field label="Payment preference">
-          <SegmentedControl
-            options={PAYMENT_PREFERENCES}
-            value={paymentPreference}
-            onChange={setPaymentPreference}
-          />
-        </Field>
+        {profileError && (
+          <Text className="text-center text-sm text-destructive" onPress={() => refetchProfile()}>
+            Couldn&rsquo;t load your current details — tap to retry before editing
+          </Text>
+        )}
 
         <View className="w-full pt-2">
-          <Button onPress={() => navigation.navigate("OnboardingStatus")}>Finish setup</Button>
+          <Button disabled={submitting || profileError} onPress={handleSubmit}>
+            {submitting ? "Submitting…" : "Finish setup"}
+          </Button>
         </View>
+
+        {error && <Text className="text-center text-sm text-destructive">{error}</Text>}
 
         <Text className="text-center text-xs text-muted-foreground">
           Payouts are settled daily to your selected account or UPI ID.

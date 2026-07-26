@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -9,10 +10,7 @@ import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import AppBar from "@/components/partner/AppBar";
 import { cn } from "@/lib/utils";
-import { mockPartner } from "@/mocks/fixtures";
-
-const IS_VEG_FLEET = mockPartner.fleetType === "veg";
-const FLEET_LABEL = IS_VEG_FLEET ? "Veg-Only Fleet" : "Standard Fleet";
+import client from "@/api/client";
 
 const REASONS = [
   "Not enough orders on veg fleet",
@@ -21,10 +19,57 @@ const REASONS = [
   "Personal reason",
 ];
 
+const FLEET_LABEL = { veg: "Veg-Only Fleet", standard: "Standard Fleet" };
+
 export default function FleetChangeRequest() {
   const navigation = useNavigation();
   const [selectedReason, setSelectedReason] = useState(REASONS[0]);
   const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const { data: profile } = useQuery({
+    queryKey: ["partner", "profile"],
+    queryFn: () => client.get("/partner/profile"),
+  });
+  const currentFleetType = profile?.partner?.fleetType;
+  // Only two fleet types exist at all, so "the other one" is unambiguous — there's no picker UI
+  // here because there's nothing to pick between.
+  const requestedFleetType = currentFleetType === "veg" ? "standard" : "veg";
+
+  // Also the real source for expectedResponseHours before any request has been submitted — the
+  // create endpoint only returns it once one exists, but this GET always includes it.
+  const { data: history, isError: historyError, refetch: refetchHistory } = useQuery({
+    queryKey: ["partner", "fleet-change-requests"],
+    queryFn: () => client.get("/partner/fleet-change-requests"),
+  });
+  const expectedResponseHours = history?.expectedResponseHours;
+
+  async function handleSubmit() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await client.post("/partner/fleet-change-requests", {
+        requestedFleetType,
+        reason: selectedReason,
+        notes: notes.trim() || undefined,
+      });
+      navigation.navigate("ProfileFleetChangeSubmitted");
+    } catch (err) {
+      if (err.code === "ALREADY_PENDING") {
+        // Functionally the same next step either way — show the existing pending request's real
+        // status rather than blocking on an error here.
+        navigation.navigate("ProfileFleetChangeSubmitted");
+      } else {
+        // Covers the "already on the requested fleet" case (VALIDATION_ERROR) — the backend's own
+        // message already reads naturally ("You are already on the X fleet").
+        setError(err.message);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Screen edges={["top"]}>
@@ -34,7 +79,18 @@ export default function FleetChangeRequest() {
         <Card className="gap-2">
           <Text className="text-xs text-muted-foreground">Current fleet</Text>
           <View className="h-7 w-[110px] items-center justify-center rounded-full bg-primary-tint px-3">
-            <Text className="font-jakarta-semibold text-xs text-primary-hover">{FLEET_LABEL}</Text>
+            <Text className="font-jakarta-semibold text-xs text-primary-hover">
+              {FLEET_LABEL[currentFleetType] ?? "—"}
+            </Text>
+          </View>
+        </Card>
+
+        <Card className="gap-2">
+          <Text className="text-xs text-muted-foreground">Requesting</Text>
+          <View className="h-7 w-[110px] items-center justify-center rounded-full bg-success-tint px-3">
+            <Text className="font-jakarta-semibold text-xs text-[#17803d]">
+              {FLEET_LABEL[requestedFleetType]}
+            </Text>
           </View>
         </Card>
 
@@ -75,13 +131,24 @@ export default function FleetChangeRequest() {
         />
 
         <View className="h-11 w-full items-center justify-center rounded-[20px] bg-success-tint px-4">
-          <Text className="font-jakarta-medium text-sm text-[#17803d]">
-            ⏱  Ops responds within 72 hours
-          </Text>
+          {historyError ? (
+            <Text
+              className="font-jakarta-medium text-sm text-destructive"
+              onPress={() => refetchHistory()}
+            >
+              Couldn&rsquo;t load — tap to retry
+            </Text>
+          ) : (
+            <Text className="font-jakarta-medium text-sm text-[#17803d]">
+              ⏱ {expectedResponseHours != null ? `Ops responds within ${expectedResponseHours} hours` : "Loading…"}
+            </Text>
+          )}
         </View>
 
-        <Button className="w-full" onPress={() => navigation.navigate("ProfileFleetChangeSubmitted")}>
-          Submit request
+        {error && <Text className="text-center text-sm text-destructive">{error}</Text>}
+
+        <Button className="w-full" disabled={submitting || !currentFleetType} onPress={handleSubmit}>
+          {submitting ? "Submitting…" : "Submit request"}
         </Button>
       </View>
     </Screen>

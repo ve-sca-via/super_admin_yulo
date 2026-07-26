@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+import { usePartnerAuth } from "@/context/PartnerAuthContext";
 import { OnboardingProvider } from "@/context/OnboardingContext";
 import PlaceholderScreen from "@/components/partner/PlaceholderScreen";
 
@@ -36,6 +37,7 @@ import SupportHelp from "@/screens/profile/SupportHelp";
 import Notifications from "@/screens/profile/Notifications";
 import FleetChangeRequest from "@/screens/profile/FleetChangeRequest";
 import RequestSubmitted from "@/screens/profile/RequestSubmitted";
+import ReportIssue from "@/screens/profile/ReportIssue";
 
 const Stack = createNativeStackNavigator();
 
@@ -70,8 +72,23 @@ function OnboardingStack() {
 }
 
 export default function RootNavigator() {
+  // No auth-aware routing existed here at all before this — initialRouteName was hardcoded to
+  // "Onboarding" unconditionally, so even a fully persisted, still-valid session would land back
+  // on PhoneEntry on every app launch. `hydrated`/`isAuthenticated` come from
+  // PartnerAuthContext's own AsyncStorage/refresh-token hydration (see PartnerAuthContext.jsx).
+  // Landing an authenticated-but-not-yet-approved partner on Home is a reasonable default, not a
+  // perfect one — resuming at the exact right onboarding step (personal info vs. documents vs.
+  // awaiting verification) needs the onboarding-status data that only gets wired in once the
+  // onboarding screens themselves are (a later step), not something to build here.
+  const { hydrated, isAuthenticated } = usePartnerAuth();
+
+  if (!hydrated) return null;
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Onboarding">
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={isAuthenticated ? "HomeOffline" : "Onboarding"}
+    >
       <Stack.Screen name="Onboarding" component={OnboardingStack} />
       <Stack.Screen name="HomeOffline" component={Home} />
       <Stack.Screen
@@ -79,12 +96,9 @@ export default function RootNavigator() {
         component={FleetBadgeInfo}
         options={{ presentation: "transparentModal", animation: "fade" }}
       />
-      <Stack.Screen name="OrdersIncomingVeg" component={IncomingOrder} initialParams={{ orderKey: "veg" }} />
-      <Stack.Screen
-        name="OrdersIncomingStandard"
-        component={IncomingOrder}
-        initialParams={{ orderKey: "standard" }}
-      />
+      {/* A single route now — fleetType comes from the real order_offer payload (see
+          partnerSocket.js), not from which of two routes got registered. */}
+      <Stack.Screen name="OrdersIncoming" component={IncomingOrder} />
       <Stack.Screen
         name="OrdersReject"
         component={RejectReasonSheet}
@@ -101,6 +115,9 @@ export default function RootNavigator() {
       <Stack.Screen name="EarningsWeekly" component={Earnings} initialParams={{ period: "weekly" }} />
       <Stack.Screen name="EarningsMonthly" component={Earnings} initialParams={{ period: "monthly" }} />
       <Stack.Screen name="EarningsCashDeposit" component={CashDeposit} />
+      {/* Was imported but never registered — CashDeposit.jsx's navigate("EarningsDepositConfirmed")
+          targeted a route that didn't exist at all. */}
+      <Stack.Screen name="EarningsDepositConfirmed" component={DepositConfirmed} />
       <Stack.Screen name="Profile" component={Profile} />
       <Stack.Screen name="ProfilePersonalDetails" component={PersonalDetails} />
       <Stack.Screen name="ProfileVehicleDetails" component={VehicleDetails} />
@@ -109,6 +126,7 @@ export default function RootNavigator() {
       <Stack.Screen name="ProfileNotifications" component={Notifications} />
       <Stack.Screen name="ProfileFleetChange" component={FleetChangeRequest} />
       <Stack.Screen name="ProfileFleetChangeSubmitted" component={RequestSubmitted} />
+      <Stack.Screen name="ProfileReportIssue" component={ReportIssue} />
       {STUBS.map(({ name, title, flow, showNav }) => (
         <Stack.Screen key={name} name={name}>
           {() => <PlaceholderScreen title={title} flow={flow} showNav={showNav ?? true} />}

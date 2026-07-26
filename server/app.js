@@ -22,7 +22,18 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(helmet());
-app.use(cors({ origin: env.ALLOWED_ORIGINS.split(','), credentials: true }));
+// ALLOWED_ORIGINS=* was previously passed straight through as `origin: ['*']` — the `cors`
+// package does exact string matching against the array, so a real browser's Origin header
+// (always a real URL, never the literal string "*") could never match; combined with
+// `credentials: true`, a literal '*' isn't even spec-legal (browsers reject
+// Access-Control-Allow-Origin: * alongside Access-Control-Allow-Credentials: true). This silently
+// blocked every real browser client — never caught before because every prior test against this
+// backend was curl or a raw socket.io-client script, neither of which enforces CORS at all.
+// `origin: true` makes the `cors` package dynamically reflect whatever Origin the request
+// actually sent (the correct way to say "any origin" while still allowing credentials); a real
+// comma-separated allowlist (the production case) is unaffected, still exact-matched as before.
+const allowedOrigins = env.ALLOWED_ORIGINS.split(',').map((o) => o.trim());
+app.use(cors({ origin: allowedOrigins.includes('*') ? true : allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
 app.use(pinoHttp({ logger }));

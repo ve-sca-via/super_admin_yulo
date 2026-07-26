@@ -1,26 +1,27 @@
 import { ScrollView, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/Button";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import AppBar from "@/components/partner/AppBar";
 import { cn } from "@/lib/utils";
-import { mockVehicle, VEHICLE_TYPES } from "@/mocks/fixtures";
+import client from "@/api/client";
+import { VEHICLE_TYPES } from "@/mocks/fixtures";
 
 function Field({ label, value }) {
   return (
     <View className="gap-1.5">
       <Text className="font-jakarta-medium text-xs text-muted-foreground">{label}</Text>
       <View className="h-12 justify-center rounded-xl border border-border bg-[#f5f5f5] px-4">
-        <Text className="text-sm text-foreground">{value}</Text>
+        <Text className="text-sm text-foreground">{value ?? "—"}</Text>
       </View>
     </View>
   );
 }
 
-// Read-only display only — highlights whichever entry matches
-// `mockVehicle.type`, same pattern as PersonalDetails' gender field.
+// Read-only display only — highlights whichever entry matches the real partner's vehicle.type.
 function VehicleTypeField({ value }) {
   return (
     <View className="gap-1.5">
@@ -55,21 +56,34 @@ function VehicleTypeField({ value }) {
 
 export default function VehicleDetails() {
   const navigation = useNavigation();
+  const { data } = useQuery({
+    queryKey: ["partner", "profile"],
+    queryFn: () => client.get("/partner/profile"),
+  });
+  const vehicle = data?.partner?.vehicle;
 
   return (
     <Screen edges={["top"]}>
       <AppBar title="Vehicle details" onBack={true} />
 
       <ScrollView contentContainerClassName="gap-4 px-6 pb-6 pt-3">
-        <VehicleTypeField value={mockVehicle.type} />
-        <Field label="Vehicle model" value={mockVehicle.model} />
-        <Field label="Vehicle registration number" value={mockVehicle.registrationNumber} />
-        <Field label="RC number" value={mockVehicle.rcNumber} />
-        <Field label="Insurance provider" value={mockVehicle.insuranceProvider} />
-        <Field label="Insurance policy number" value={mockVehicle.insurancePolicyNumber} />
-        <Field label="Insurance validity" value={mockVehicle.insuranceValidTill} />
+        <VehicleTypeField value={vehicle?.type} />
+        <Field label="Vehicle model" value={vehicle?.model} />
+        <Field label="Vehicle registration number" value={vehicle?.number} />
+        <Field label="RC number" value={vehicle?.rcNumber} />
+        <Field label="Insurance provider" value={vehicle?.insuranceProvider} />
+        <Field label="Insurance policy number" value={vehicle?.insuranceNumber} />
+        <Field
+          label="Insurance validity"
+          value={vehicle?.insuranceValidTill ? new Date(vehicle.insuranceValidTill).toDateString() : null}
+        />
 
-        <Button className="mt-2" onPress={() => navigation.goBack()}>
+        <Button
+          className="mt-2"
+          onPress={() =>
+            navigation.navigate("Onboarding", { screen: "OnboardingVehicleDetails", params: { fromProfile: true } })
+          }
+        >
           Request Changes
         </Button>
 

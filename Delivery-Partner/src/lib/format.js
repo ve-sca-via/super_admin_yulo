@@ -18,3 +18,13 @@ export function formatClock(totalSeconds) {
 export function formatCurrency(amount) {
   return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+// "Today, 6:42 PM" for a deposit made earlier today (matches the Figma copy exactly), a dated
+// "26 Jul, 6:42 PM" otherwise — used by DepositConfirmed.jsx for a real deposit's createdAt.
+export function formatDateTime(dateInput) {
+  const date = new Date(dateInput);
+  const time = date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  if (date.toDateString() === new Date().toDateString()) return `Today, ${time}`;
+  const day = date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return `${day}, ${time}`;
+}

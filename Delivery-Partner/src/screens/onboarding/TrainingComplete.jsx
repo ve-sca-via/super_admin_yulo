@@ -1,40 +1,59 @@
+import { useEffect } from "react";
 import { View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { Check } from "lucide-react-native";
 
 import Button from "@/components/ui/Button";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import BottomNav from "@/components/partner/BottomNav";
-import { useOnboarding } from "@/context/OnboardingContext";
 import { formatDuration } from "@/lib/format";
+
+// Matches server/services/training.service.js's MAX_QUIZ_SCORE.
+const MAX_QUIZ_SCORE = 10;
 
 export default function TrainingComplete() {
   const navigation = useNavigation();
-  const { training } = useOnboarding();
-  const { moduleLabel, moduleIndex, totalModules, watchedSeconds } = training;
-  const hasNextModule = moduleIndex < totalModules;
+  const { params } = useRoute();
 
-  // Was unconditionally navigating to HomeOffline regardless of whether more modules remained,
-  // even though the label below already computed moduleIndex+1/totalModules correctly. Real
-  // per-module content switching (a different moduleId/label/duration for module 3) needs the
-  // backend's module registry (server/services/training.service.js) wired in — this mock only
-  // ever models one module ("veg-handling"), so continuing re-enters the same screen with the
-  // same moduleId for now; the navigation decision itself (loop back vs. finish) is correct.
+  useEffect(() => {
+    if (!params) navigation.navigate("HomeOffline");
+  }, [params, navigation]);
+
+  if (!params) return null;
+
+  const {
+    completedModuleLabel,
+    completedModuleIndex,
+    totalModules,
+    watchedSeconds,
+    lastQuizScore,
+    certificateStatus,
+  } = params;
+  const hasNextModule = completedModuleIndex < totalModules;
+
+  // Real per-module content switching is handled by TrainingModule.jsx re-fetching
+  // GET /partner/training/status itself (the server already advanced currentModuleId when this
+  // module's /complete call succeeded) — this screen doesn't need to know which module is next,
+  // just whether one exists.
   function handleContinue() {
     if (hasNextModule) {
-      navigation.navigate("OnboardingTraining", { moduleId: training.moduleId });
+      navigation.navigate("OnboardingTraining");
     } else {
       navigation.navigate("HomeOffline");
     }
   }
 
   const rows = [
-    { label: "Quiz score", value: "9 / 10" },
+    { label: "Quiz score", value: `${lastQuizScore} / ${MAX_QUIZ_SCORE}` },
     { label: "Watch time", value: formatDuration(watchedSeconds) },
     { label: "Result", value: "Passed" },
-    { label: "Certificate", value: "Pending", accent: true },
-    { label: "Next up", value: `Module ${moduleIndex + 1}` },
+    {
+      label: "Certificate",
+      value: certificateStatus === "issued" ? "Issued" : "Pending",
+      accent: true,
+    },
+    { label: "Next up", value: hasNextModule ? `Module ${completedModuleIndex + 1}` : "—" },
   ];
 
   return (
@@ -46,7 +65,7 @@ export default function TrainingComplete() {
         <View className="items-center gap-0.5">
           <Text className="font-jakarta-bold text-2xl text-white">Module complete!</Text>
           <Text className="text-sm text-white">
-            {moduleLabel} · Module {moduleIndex} of {totalModules}
+            {completedModuleLabel} · Module {completedModuleIndex} of {totalModules}
           </Text>
         </View>
       </View>
@@ -74,13 +93,13 @@ export default function TrainingComplete() {
           <View className="flex-row items-center justify-between">
             <Text className="font-jakarta-bold text-base text-foreground">Overall</Text>
             <Text className="font-jakarta-bold text-xl text-primary">
-              {moduleIndex} / {totalModules}
+              {completedModuleIndex} / {totalModules}
             </Text>
           </View>
         </View>
 
         <Button onPress={handleContinue}>
-          {hasNextModule ? `Continue to Module ${moduleIndex + 1}` : "Done"}
+          {hasNextModule ? `Continue to Module ${completedModuleIndex + 1}` : "Done"}
         </Button>
       </View>
 

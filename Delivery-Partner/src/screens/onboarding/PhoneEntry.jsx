@@ -12,15 +12,25 @@ export default function PhoneEntry() {
   const { requestOtp } = usePartnerAuth();
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   const isValid = phone.length === 10;
 
+  // requestOtp now hits a real endpoint (rate limiting, network failure, etc. are all real,
+  // reachable outcomes here, unlike the mock version this replaced, which never threw) — an
+  // unhandled rejection here would otherwise silently strand the user on "Sending…".
   async function handleSubmit() {
     if (!isValid || submitting) return;
     setSubmitting(true);
-    await requestOtp(phone);
-    setSubmitting(false);
-    navigation.navigate("OnboardingOtp");
+    setError(null);
+    try {
+      await requestOtp(phone);
+      navigation.navigate("OnboardingOtp");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -62,6 +72,10 @@ export default function PhoneEntry() {
         <Button disabled={!isValid || submitting} onPress={handleSubmit}>
           {submitting ? "Sending…" : "Send OTP"}
         </Button>
+
+        {error && (
+          <Text className="text-center text-sm text-destructive">{error}</Text>
+        )}
 
         <Text className="text-center font-jakarta-medium text-xs text-muted-foreground">
           By continuing, you agree to our Terms &amp; Privacy Policy

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Check } from "lucide-react-native";
@@ -9,11 +9,16 @@ import Text from "@/components/ui/Text";
 import AppBar from "@/components/partner/AppBar";
 import OtpInput from "@/components/partner/OtpInput";
 import { cn } from "@/lib/utils";
-import { mockOrders } from "@/mocks/fixtures";
+import client from "@/api/client";
 
+// Matches server/controllers/partner/order.controller.js's packagingChecklist fields exactly
+// (sealIntact, tempBagUsed). The old second item, "No other order in bag", didn't correspond to
+// either backend field — tempBagUsed means a certified insulated bag was used (see
+// IncomingOrder.jsx's "use your certified bag" copy for veg orders), a different fact entirely.
+// Relabeled so the checkbox the partner taps actually matches what gets sent.
 const CHECKLIST_ITEMS = [
-  { key: "sealed", label: "Sealed veg packaging verified" },
-  { key: "noOther", label: "No other order in bag" },
+  { key: "sealIntact", label: "Sealed veg packaging verified" },
+  { key: "tempBagUsed", label: "Used certified insulated bag" },
 ];
 
 // Reached from GoToPickup once the partner arrives at the restaurant. Renders
@@ -26,24 +31,52 @@ const CHECKLIST_ITEMS = [
 export default function VegCheckpoint() {
   const navigation = useNavigation();
   const { params } = useRoute();
-  const orderKey = params?.orderKey ?? "veg";
-  const order = mockOrders[orderKey];
-  const isVeg = order.fleetType === "veg";
+  const order = params?.order;
+  const isVeg = order?.fleetType === "veg";
 
-  const [checklist, setChecklist] = useState({ sealed: true, noOther: false });
+  const [checklist, setChecklist] = useState({ sealIntact: true, tempBagUsed: false });
   const [otp, setOtp] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!order) navigation.navigate("HomeOffline");
+  }, [order, navigation]);
+
+  if (!order) return null;
 
   const allChecked = Object.values(checklist).every(Boolean);
   const checklistPending = isVeg && !allChecked;
-  const canConfirm = !checklistPending && otp.length === 4;
+  const canConfirm = !checklistPending && otp.length === 4 && !submitting;
 
   function toggleChecklist(key) {
     setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!canConfirm) return;
-    navigation.navigate("DeliveryNavigate", { orderKey });
+    setSubmitting(true);
+    setError(null);
+    try {
+      await client.post(`/partner/orders/${order.orderId}/verify-pickup`, {
+        otp,
+        // Only sent for veg orders — the backend only requires it then (per req.partner.fleetType),
+        // and sending it harmlessly for standard orders is fine too, but there's nothing to send
+        // if the checklist was never shown.
+        ...(isVeg ? { packagingChecklist: checklist } : {}),
+      });
+      navigation.navigate("DeliveryNavigate", { order });
+    } catch (err) {
+      if (err.code === "INVALID_OTP") {
+        setError("Incorrect pickup OTP — check the code and try again.");
+      } else if (err.code === "CHECKLIST_INCOMPLETE") {
+        setError("Complete the veg packaging checklist before confirming pickup.");
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -102,8 +135,14 @@ export default function VegCheckpoint() {
           />
         </View>
 
+        {error && <Text className="text-center text-sm text-destructive">{error}</Text>}
+
         <Button variant={canConfirm ? "default" : "disabled"} disabled={!canConfirm} onPress={handleConfirm}>
-          {checklistPending ? "Confirm pickup — complete checklist first" : "Confirm pickup"}
+          {submitting
+            ? "Verifying…"
+            : checklistPending
+              ? "Confirm pickup — complete checklist first"
+              : "Confirm pickup"}
         </Button>
       </View>
     </Screen>

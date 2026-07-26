@@ -1,29 +1,36 @@
+import { useEffect } from "react";
 import { View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { Check } from "lucide-react-native";
 
 import Button from "@/components/ui/Button";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import BottomNav from "@/components/partner/BottomNav";
-import { formatCurrency } from "@/lib/format";
-
-// Snapshot figures matching CashDeposit.jsx's AMOUNT_TO_DEPOSIT — this
-// screen is reached right after that screen's submit action, before any
-// real deposit-history backend exists.
-const AMOUNT_DEPOSITED = 605;
-const DEPOSIT_POINT = "Spice Route Kitchen";
-const DEPOSITED_AT = "Today, 6:42 PM";
-
-const ROWS = [
-  { label: "Amount deposited", value: formatCurrency(AMOUNT_DEPOSITED) },
-  { label: "Method", value: "Store deposit" },
-  { label: "Deposit point", value: DEPOSIT_POINT },
-  { label: "Date & time", value: DEPOSITED_AT },
-];
+import { formatCurrency, formatDateTime } from "@/lib/format";
 
 export default function DepositConfirmed() {
   const navigation = useNavigation();
+  const { params } = useRoute();
+  const deposit = params?.deposit;
+  const cashInHandAfter = params?.cashInHandAfter;
+
+  useEffect(() => {
+    if (!deposit) navigation.navigate("HomeOffline");
+  }, [deposit, navigation]);
+
+  if (!deposit) return null;
+
+  // No restaurant-picker exists on CashDeposit.jsx, so depositPointRestaurantId is never sent —
+  // a generic "Deposited" is honest here; fabricating a specific restaurant name the backend
+  // never received would just be a different flavor of the same mock-data problem this step
+  // fixes elsewhere (depositPointRestaurantId is optional on the backend for exactly this reason).
+  const ROWS = [
+    { label: "Amount deposited", value: formatCurrency(deposit.amount) },
+    { label: "Method", value: "Store deposit" },
+    { label: "Deposit point", value: "Deposited" },
+    { label: "Date & time", value: formatDateTime(deposit.createdAt) },
+  ];
 
   return (
     <Screen edges={["top", "bottom"]}>
@@ -34,7 +41,7 @@ export default function DepositConfirmed() {
         <View className="items-center gap-0.5">
           <Text className="font-jakarta-bold text-2xl text-white">Cash deposited</Text>
           <Text className="text-sm text-white">
-            {formatCurrency(AMOUNT_DEPOSITED)} · Deposited at store
+            {formatCurrency(deposit.amount)} · Deposited at store
           </Text>
         </View>
       </View>
@@ -53,7 +60,9 @@ export default function DepositConfirmed() {
           <View className="h-px w-full bg-border" />
           <View className="flex-row items-center justify-between">
             <Text className="font-jakarta-bold text-base text-foreground">Cash in hand now</Text>
-            <Text className="font-jakarta-bold text-xl text-primary">{formatCurrency(0)}</Text>
+            <Text className="font-jakarta-bold text-xl text-primary">
+              {formatCurrency(cashInHandAfter ?? 0)}
+            </Text>
           </View>
         </View>
 

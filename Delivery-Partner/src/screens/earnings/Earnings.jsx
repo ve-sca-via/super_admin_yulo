@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
@@ -8,7 +9,8 @@ import AppBar from "@/components/partner/AppBar";
 import BottomNav from "@/components/partner/BottomNav";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
-import { CASH_IN_HAND, EARNINGS_BY_PERIOD, mockPartner } from "@/mocks/fixtures";
+import client from "@/api/client";
+import { usePartnerAuth } from "@/context/PartnerAuthContext";
 
 const TABS = [
   { key: "today", label: "Today" },
@@ -29,9 +31,44 @@ const BREAKDOWN_ROWS = (data, isVeg) =>
 export default function Earnings() {
   const navigation = useNavigation();
   const { params } = useRoute();
+  const { user } = usePartnerAuth();
   const [period, setPeriod] = useState(params?.period ?? "today");
-  const data = EARNINGS_BY_PERIOD[period];
-  const isVeg = mockPartner.fleetType === "veg";
+  const isVeg = user?.fleetType === "veg";
+
+  const {
+    data,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ["partner", "earnings", period],
+    queryFn: () => client.get(`/partner/earnings?period=${period}`),
+  });
+  // Two separate real endpoints on purpose (see cashLedger.service.js's full-ledger design
+  // comment) — not derived from `data` above, which only covers the selected period's earnings.
+  const { data: cashInHandData } = useQuery({
+    queryKey: ["partner", "earnings", "cash-in-hand"],
+    queryFn: () => client.get("/partner/earnings/cash-in-hand"),
+  });
+  const cashInHand = cashInHandData?.cashInHand;
+
+  // A bare `if (!data) return null` here would leave a permanently-failing fetch as a blank
+  // screen forever (no AppBar, no BottomNav, no way back) — show a retry instead.
+  if (isError) {
+    return (
+      <Screen edges={["top", "bottom"]}>
+        <AppBar title="Earnings" />
+        <View className="w-full flex-1 items-center justify-center px-6">
+          <Pressable onPress={() => refetch()}>
+            <Text className="text-center text-sm text-destructive">
+              Couldn&rsquo;t load earnings — tap to retry
+            </Text>
+          </Pressable>
+        </View>
+        <BottomNav />
+      </Screen>
+    );
+  }
+  if (!data) return null;
 
   return (
     <Screen edges={["top", "bottom"]}>
@@ -98,7 +135,7 @@ export default function Earnings() {
           className="w-full flex-row items-center rounded-[20px] border border-destructive bg-destructive/10 p-4 shadow-md shadow-black/10"
         >
           <Text className="flex-1 font-jakarta-semibold text-sm text-destructive">
-            Cash in hand: {formatCurrency(CASH_IN_HAND)} · Deposit now →
+            Cash in hand: {cashInHand != null ? formatCurrency(cashInHand) : "…"} · Deposit now →
           </Text>
         </Pressable>
       </View>

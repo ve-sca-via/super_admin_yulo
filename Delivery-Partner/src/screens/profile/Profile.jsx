@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 import {
   Ban,
   Bike,
@@ -19,11 +20,7 @@ import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import BottomNav from "@/components/partner/BottomNav";
 import { usePartnerAuth } from "@/context/PartnerAuthContext";
-import { mockPartner } from "@/mocks/fixtures";
-
-const IS_VEG_FLEET = mockPartner.fleetType === "veg";
-const FLEET_LABEL_LONG = IS_VEG_FLEET ? "Veg-Only Fleet" : "Standard Fleet";
-const FLEET_LABEL_SHORT = IS_VEG_FLEET ? "Veg-Only" : "Standard";
+import client from "@/api/client";
 
 const MENU_SECTIONS = [
   {
@@ -33,7 +30,7 @@ const MENU_SECTIONS = [
         icon: Shield,
         label: "Fleet type & change request",
         route: "ProfileFleetChange",
-        chip: FLEET_LABEL_SHORT,
+        chipKey: "fleet",
       },
       {
         icon: Leaf,
@@ -95,6 +92,15 @@ export default function Profile() {
   const { logout } = usePartnerAuth();
   const [showLogout, setShowLogout] = useState(false);
 
+  const { data } = useQuery({
+    queryKey: ["partner", "profile"],
+    queryFn: () => client.get("/partner/profile"),
+  });
+  const partner = data?.partner;
+  const isVeg = partner?.fleetType === "veg";
+  const fleetLabelLong = isVeg ? "Veg-Only Fleet" : "Standard Fleet";
+  const fleetLabelShort = isVeg ? "Veg-Only" : "Standard";
+
   function handleConfirmLogout() {
     logout();
     navigation.reset({ index: 0, routes: [{ name: "Onboarding" }] });
@@ -105,16 +111,22 @@ export default function Profile() {
       <View className="h-[112px] w-full flex-row gap-4 bg-card px-6 pb-3 pt-[18px]">
         <View className="size-12 items-center justify-center rounded-full bg-primary">
           <Text className="font-jakarta-bold text-lg text-white">
-            {mockPartner.fullName?.charAt(0) ?? "?"}
+            {partner?.fullName?.charAt(0) ?? "?"}
           </Text>
         </View>
         <View className="flex-1 justify-center gap-1.5">
-          <Text className="font-jakarta-bold text-xl text-foreground">{mockPartner.fullName}</Text>
+          <Text className="font-jakarta-bold text-xl text-foreground">
+            {partner?.fullName ?? "—"}
+          </Text>
           <View className="h-7 w-[110px] items-center justify-center rounded-full bg-primary-tint px-3">
-            <Text className="font-jakarta-semibold text-xs text-primary-hover">{FLEET_LABEL_LONG}</Text>
+            <Text className="font-jakarta-semibold text-xs text-primary-hover">{fleetLabelLong}</Text>
           </View>
+          {/* No acceptance-rate/on-time-rate fields exist anywhere on the backend (only
+              rating/totalDeliveries) — showing fabricated percentages here would be the same
+              mock-data problem this step exists to fix, just moved into a comment instead of a
+              constant. Real rating only. */}
           <Text className="text-xs text-muted-foreground">
-            ⭐ {mockPartner.rating}  ·  93% acceptance  ·  96% on-time
+            ⭐ {partner ? partner.rating.toFixed(1) : "—"} · {partner?.totalDeliveries ?? 0} deliveries
           </Text>
         </View>
       </View>
@@ -128,7 +140,7 @@ export default function Profile() {
                 key={row.label}
                 icon={row.icon}
                 label={row.label}
-                chip={row.chip}
+                chip={row.chipKey === "fleet" ? fleetLabelShort : row.chip}
                 onPress={() => (row.navigate ? row.navigate(navigation) : navigation.navigate(row.route))}
               />
             ))}

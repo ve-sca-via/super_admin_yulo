@@ -1,21 +1,48 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 import Text from "@/components/ui/Text";
+import Input from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { SKIP_REASONS } from "@/mocks/fixtures";
+import client from "@/api/client";
 
 // Presented as a transparentModal (see RootNavigator.jsx), matching
 // FleetBadgeInfo's overlay pattern. Tapping a reason confirms immediately —
 // the Figma design has no separate "Confirm" button, just the option rows.
+// The one exception is "Other": the backend requires non-empty notes for that
+// reason (server/controllers/partner/order.controller.js's rejectSchema), so it alone
+// reveals a text field + explicit Confirm rather than submitting on tap.
 export default function RejectReasonSheet() {
   const navigation = useNavigation();
-  const [selected, setSelected] = useState(SKIP_REASONS[0]);
+  const { params } = useRoute();
+  const [selected, setSelected] = useState(null);
+  const [otherNotes, setOtherNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function submitReject(reason, notes) {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await client.post(`/partner/orders/${params.orderId}/reject`, { reason, notes });
+      navigation.navigate("OrdersSkipConfirmed");
+    } catch (err) {
+      if (err.code === "OFFER_EXPIRED" || err.code === "NOT_YOUR_OFFER") {
+        navigation.navigate("HomeOffline");
+      } else {
+        setError(err.message);
+        setSubmitting(false);
+      }
+    }
+  }
 
   function handleSelect(reason) {
+    if (submitting) return;
     setSelected(reason);
-    navigation.navigate("OrdersSkipConfirmed");
+    if (reason !== "Other") submitReject(reason, undefined);
   }
 
   return (
@@ -53,6 +80,28 @@ export default function RejectReasonSheet() {
             );
           })}
         </View>
+
+        {selected === "Other" && (
+          <View className="w-full gap-3">
+            <Input
+              value={otherNotes}
+              onChangeText={setOtherNotes}
+              placeholder="Tell us more…"
+              className="rounded-2xl"
+            />
+            {error && <Text className="text-center text-sm text-destructive">{error}</Text>}
+            <Button
+              disabled={submitting || !otherNotes.trim()}
+              onPress={() => submitReject("Other", otherNotes.trim())}
+            >
+              {submitting ? "Submitting…" : "Confirm"}
+            </Button>
+          </View>
+        )}
+
+        {error && selected !== "Other" && (
+          <Text className="text-center text-sm text-destructive">{error}</Text>
+        )}
       </View>
     </View>
   );

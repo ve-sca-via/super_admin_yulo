@@ -8,6 +8,7 @@ import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import AppBar from "@/components/partner/AppBar";
 import { useOnboarding } from "@/context/OnboardingContext";
+import { uploadDocumentAsset } from "@/screens/onboarding/DocumentCapture";
 
 // Figma "22 – Selfie Capture" only calls for a single guideline row (vs. the
 // three shown on "21 – Document Capture") — see node 464:1547.
@@ -15,13 +16,22 @@ const GUIDELINES = ["Good lighting, avoid glare and shadows"];
 
 export default function SelfieCapture() {
   const navigation = useNavigation();
-  const { markDocumentUploaded } = useOnboarding();
+  const { refreshOnboardingStatus } = useOnboarding();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  function complete() {
-    markDocumentUploaded("profile_photo");
-    navigation.goBack();
+  async function complete(asset) {
+    setBusy(true);
+    setError(null);
+    try {
+      await uploadDocumentAsset("profile_photo", asset);
+      refreshOnboardingStatus();
+      navigation.goBack();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleCapture() {
@@ -31,13 +41,11 @@ export default function SelfieCapture() {
       setError("Camera permission is needed to capture your selfie.");
       return;
     }
-    setBusy(true);
     const result = await ImagePicker.launchCameraAsync({
       quality: 0.7,
       cameraType: ImagePicker.CameraType.front,
     });
-    setBusy(false);
-    if (!result.canceled) complete();
+    if (!result.canceled) await complete(result.assets[0]);
   }
 
   async function handlePickFromGallery() {
@@ -47,10 +55,8 @@ export default function SelfieCapture() {
       setError("Photo library permission is needed to upload your selfie.");
       return;
     }
-    setBusy(true);
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    setBusy(false);
-    if (!result.canceled) complete();
+    if (!result.canceled) await complete(result.assets[0]);
   }
 
   return (

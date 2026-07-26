@@ -4,16 +4,13 @@ import { useNavigation, useNavigationState } from "@react-navigation/native";
 
 import { cn } from "@/lib/utils";
 import Text from "@/components/ui/Text";
-import { mockPartner } from "@/mocks/fixtures";
 
-// A veg-fleet partner only ever sees veg orders (see FleetBadgeInfo — "Non-veg
-// order offers will never appear"), so which incoming-order screen the Orders
-// tab opens has to match the signed-in partner's fleetType, not be hardcoded.
-const ORDERS_ROUTE = mockPartner.fleetType === "veg" ? "OrdersIncomingVeg" : "OrdersIncomingStandard";
-
+// OrdersIncoming now needs a real order payload as params (no fixed veg/standard route split —
+// see RootNavigator.jsx) — IncomingOrder.jsx itself redirects back to Home if it's ever reached
+// with no order in params, which is exactly what happens tapping this tab with nothing pending.
 const ITEMS = [
   { route: "HomeOffline", label: "Home", icon: Home },
-  { route: ORDERS_ROUTE, label: "Orders", icon: Package },
+  { route: "OrdersIncoming", label: "Orders", icon: Package },
   { route: "Earnings", label: "Earn", icon: Wallet },
   { route: "Profile", label: "Profile", icon: User },
 ];

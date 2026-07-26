@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useIsFocused } from "@react-navigation/native";
 import { Play } from "lucide-react-native";
 
 import Button from "@/components/ui/Button";
@@ -11,6 +11,7 @@ import ProgressBar from "@/components/partner/ProgressBar";
 import { useOnboarding } from "@/context/OnboardingContext";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import client from "@/api/client";
 
 const CHECKLIST = [
   "Inspect bag seal before every pickup",
@@ -19,23 +20,80 @@ const CHECKLIST = [
   "Wrong item handover flow",
 ];
 
+// No real quiz UI exists anywhere on this screen (CHECKLIST above is a watch-percentage
+// indicator, not a quiz) — matches server/services/training.service.js's MAX_QUIZ_SCORE. Always
+// reporting the max score is an honest placeholder (nothing was actually graded), unlike the old
+// TrainingComplete.jsx's fabricated "9 / 10" that implied a real quiz had happened.
+const PLACEHOLDER_QUIZ_SCORE = 10;
+
 export default function TrainingModule() {
   const navigation = useNavigation();
-  const { params } = useRoute();
-  const { moduleId } = params;
-  const { training, setTraining } = useOnboarding();
+  const isFocused = useIsFocused();
+  const { training, trainingError, refreshTrainingStatus } = useOnboarding();
   const [isPlaying, setIsPlaying] = useState(false);
+  const [localWatchedSeconds, setLocalWatchedSeconds] = useState(0);
+  const [completing, setCompleting] = useState(false);
+  const [error, setError] = useState(null);
   const intervalRef = useRef(null);
+  const tickCountRef = useRef(0);
+  // Tracks which moduleId local state was last seeded for — re-seed happens when this DIFFERS
+  // from training.moduleId, not on every render where `training` merely changes reference.
+  const seededForModuleIdRef = useRef(null);
 
-  const { watchedSeconds, durationSeconds, moduleLabel, moduleIndex, totalModules } = training;
-  const pct = (watchedSeconds / durationSeconds) * 100;
-  const isDone = watchedSeconds >= durationSeconds;
+  // Not reachable unapproved (server 403s — see assertApprovedForTraining) or once training is
+  // already fully complete (moduleId null then, nothing left to show here). Gated on isFocused:
+  // React Navigation's web target keeps this screen mounted (hidden) rather than unmounting it
+  // after navigating to TrainingComplete, so its effects keep reacting to prop changes in the
+  // background — without this gate, invalidating the training-status query after completing the
+  // LAST module (moduleId becomes null) fires this redirect on the now-backgrounded instance and
+  // stomps the navigate to TrainingComplete that just happened. Confirmed live.
+  useEffect(() => {
+    if (!isFocused) return;
+    if (trainingError || (training && !training.moduleId)) {
+      navigation.navigate("HomeOffline");
+    }
+  }, [trainingError, training, navigation, isFocused]);
 
-  useEffect(() => () => clearInterval(intervalRef.current), []);
+  // Seeds local playback state from the real server value once per distinct module — this is
+  // what makes progress actually resume from where the server last saw it after an app restart
+  // mid-module (instead of always restarting at 0), AND what resets local state correctly when
+  // moving to the next module (React Navigation's default navigate() reuses this same screen
+  // instance rather than remounting it, since "OnboardingTraining" is already in the stack).
+  // Deliberately keyed on moduleId rather than re-seeding on every render where `training`
+  // changes: `isPlaying` flips back to false the instant playback naturally finishes too (see the
+  // isDone effect below), and re-seeding at that exact moment from the still-stale
+  // pre-playback watchedSeconds would snap the just-completed progress straight back down to 0
+  // for the SAME module — confirmed live, this was a real bug before keying on moduleId.
+  useEffect(() => {
+    if (training && training.moduleId !== seededForModuleIdRef.current) {
+      setLocalWatchedSeconds(training.watchedSeconds);
+      seededForModuleIdRef.current = training.moduleId;
+    }
+  }, [training]);
 
-  // Stopping the interval and flipping local `isPlaying` state belongs here,
-  // not inside the setTraining updater below — updater functions must stay
-  // pure since React can invoke them outside the normal render/commit cycle.
+  const durationSeconds = training?.durationSeconds ?? 0;
+  const isDone = durationSeconds > 0 && localWatchedSeconds >= durationSeconds;
+
+  // Periodic real progress sync — every 3rd tick (~45 simulated seconds at the playback interval
+  // below) or the tick that finishes the module, not every single 150ms tick. The backend clamps
+  // this to be monotonic and capped at the real duration, so there's no need to duplicate that
+  // logic here — just report what's been watched.
+  useEffect(() => {
+    if (!isPlaying || !training) return;
+    if (tickCountRef.current % 3 === 0 || isDone) {
+      client
+        .patch("/partner/training/progress", {
+          moduleId: training.moduleId,
+          watchedSeconds: localWatchedSeconds,
+        })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localWatchedSeconds]);
+
+  // Stopping the interval and flipping local `isPlaying` state belongs here, not inside the
+  // setLocalWatchedSeconds updater above — updater functions must stay pure since React can
+  // invoke them outside the normal render/commit cycle.
   useEffect(() => {
     if (isDone && intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -44,17 +102,62 @@ export default function TrainingModule() {
     }
   }, [isDone]);
 
+  useEffect(() => () => clearInterval(intervalRef.current), []);
+
+  if (!training || !training.moduleId) return null;
+
+  const { moduleId, moduleLabel, moduleIndex, totalModules } = training;
+  const pct = (localWatchedSeconds / durationSeconds) * 100;
+
   function handlePlay() {
     if (isPlaying || isDone) return;
     setIsPlaying(true);
+    tickCountRef.current = 0;
     // Simulated playback — fast-forwarded so the flow can be walked through
-    // without waiting out a real 8-minute video.
+    // without waiting out a real several-minute video.
     intervalRef.current = setInterval(() => {
-      setTraining((prev) => ({
-        ...prev,
-        watchedSeconds: Math.min(prev.watchedSeconds + 15, prev.durationSeconds),
-      }));
+      tickCountRef.current += 1;
+      setLocalWatchedSeconds((prev) => Math.min(prev + 15, durationSeconds));
     }, 150);
+  }
+
+  async function handleCompleteModule() {
+    if (!isDone || completing) return;
+    setCompleting(true);
+    setError(null);
+    try {
+      // The periodic progress sync above is fire-and-forget (never awaited), so the final tick's
+      // PATCH could still be in flight — or not yet even sent — the instant this button becomes
+      // enabled. Explicitly flushing the real final value here first guarantees the server has
+      // recorded a full watch before /complete checks for one, rather than racing it. Confirmed
+      // live: without this, /complete could 400 with MODULE_NOT_WATCHED despite the UI already
+      // showing full progress.
+      await client.patch("/partner/training/progress", { moduleId, watchedSeconds: localWatchedSeconds });
+      const status = await client.post(`/partner/training/${moduleId}/complete`, {
+        quizScore: PLACEHOLDER_QUIZ_SCORE,
+      });
+      // Navigate away BEFORE invalidating — completing the LAST module makes the refetched
+      // training.moduleId null, which (while this screen is still mounted) immediately trips its
+      // own "training already complete, redirect home" guard effect above, racing the intended
+      // navigate to TrainingComplete and sometimes winning it. Confirmed live: invalidating first
+      // could land the partner back on Home instead of the completion screen after the 3rd
+      // module. Reusing the same screen instance for the next module (Step 8's own design) still
+      // gets fresh data because TrainingComplete's own "Continue" re-navigates here afterward,
+      // triggering a fresh render against whatever the cache holds by then.
+      navigation.navigate("OnboardingTrainingComplete", {
+        completedModuleLabel: moduleLabel,
+        completedModuleIndex: moduleIndex,
+        totalModules,
+        watchedSeconds: localWatchedSeconds,
+        lastQuizScore: status.lastQuizScore,
+        certificateStatus: status.certificateStatus,
+      });
+      refreshTrainingStatus();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCompleting(false);
+    }
   }
 
   return (
@@ -76,7 +179,7 @@ export default function TrainingModule() {
           <ProgressBar value={pct} size="sm" />
           <View className="w-full flex-row justify-between">
             <Text className="font-jakarta-medium text-xs text-muted-foreground">
-              {formatDuration(watchedSeconds)}
+              {formatDuration(localWatchedSeconds)}
             </Text>
             <Text className="font-jakarta-medium text-xs text-muted-foreground">
               {formatDuration(durationSeconds)}
@@ -110,12 +213,14 @@ export default function TrainingModule() {
             </View>
           </View>
 
+          {error && <Text className="text-center text-sm text-destructive">{error}</Text>}
+
           <Button
             variant={isDone ? "default" : "disabled"}
-            disabled={!isDone}
-            onPress={() => navigation.navigate("OnboardingTrainingComplete", { moduleId })}
+            disabled={!isDone || completing}
+            onPress={handleCompleteModule}
           >
-            {isDone ? "Continue to results" : "Continue — watch to unlock"}
+            {completing ? "Submitting…" : isDone ? "Continue to results" : "Continue — watch to unlock"}
           </Button>
         </View>
       </View>

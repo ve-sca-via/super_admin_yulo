@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 
@@ -8,7 +8,8 @@ import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import AppBar from "@/components/partner/AppBar";
 import { useOnboarding } from "@/context/OnboardingContext";
-import { DOCUMENT_TYPES } from "@/mocks/fixtures";
+import client from "@/api/client";
+import { DOCUMENT_FIELD_NAMES, DOCUMENT_TYPES } from "@/mocks/fixtures";
 
 const GUIDELINES = [
   "Good lighting, avoid glare and shadows",
@@ -16,19 +17,48 @@ const GUIDELINES = [
   "Text sharp and readable",
 ];
 
+export async function uploadDocumentAsset(docType, asset) {
+  const fieldName = DOCUMENT_FIELD_NAMES[docType];
+  const form = new FormData();
+
+  if (Platform.OS === "web") {
+    const blob = await fetch(asset.uri).then((r) => r.blob());
+    form.append(fieldName, blob, asset.fileName || `${docType}.jpg`);
+  } else {
+    form.append(fieldName, {
+      uri: asset.uri,
+      name: asset.fileName || `${docType}.jpg`,
+      type: asset.mimeType || "image/jpeg",
+    });
+  }
+
+  // Don't set Content-Type manually — axios/the runtime needs to generate its own multipart
+  // boundary, and a hardcoded header without one breaks multer parsing on the backend.
+  await client.post("/partner/onboarding/documents", form);
+}
+
 export default function DocumentCapture() {
   const navigation = useNavigation();
   const { params } = useRoute();
   const { docType } = params;
-  const { markDocumentUploaded } = useOnboarding();
+  const { refreshOnboardingStatus } = useOnboarding();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
   const label = DOCUMENT_TYPES.find((d) => d.type === docType)?.label ?? "Document";
 
-  function complete() {
-    markDocumentUploaded(docType);
-    navigation.goBack();
+  async function complete(asset) {
+    setBusy(true);
+    setError(null);
+    try {
+      await uploadDocumentAsset(docType, asset);
+      refreshOnboardingStatus();
+      navigation.goBack();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleCapture() {
@@ -38,10 +68,8 @@ export default function DocumentCapture() {
       setError("Camera permission is needed to capture your document.");
       return;
     }
-    setBusy(true);
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-    setBusy(false);
-    if (!result.canceled) complete();
+    if (!result.canceled) await complete(result.assets[0]);
   }
 
   async function handlePickFromGallery() {
@@ -51,10 +79,8 @@ export default function DocumentCapture() {
       setError("Photo library permission is needed to upload your document.");
       return;
     }
-    setBusy(true);
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    setBusy(false);
-    if (!result.canceled) complete();
+    if (!result.canceled) await complete(result.assets[0]);
   }
 
   return (

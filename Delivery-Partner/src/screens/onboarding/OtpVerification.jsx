@@ -17,7 +17,7 @@ function formatTimer(s) {
 
 export default function OtpVerification() {
   const navigation = useNavigation();
-  const { pendingPhone, verifyOtp, requestOtp } = usePartnerAuth();
+  const { pendingPhone, verifyOtp, requestOtp, devOtp } = usePartnerAuth();
   const [otp, setOtp] = useState("");
   const [error, setError] = useState(null);
   const [verifying, setVerifying] = useState(false);
@@ -34,8 +34,23 @@ export default function OtpVerification() {
     setVerifying(true);
     setError(null);
     try {
-      await verifyOtp(otp);
-      navigation.navigate("OnboardingDocuments");
+      const partner = await verifyOtp(otp);
+      // Was unconditionally navigating to Personal Information regardless of whether this was a
+      // brand-new signup or a RETURNING partner (e.g. logging back in after Profile > Log out) —
+      // confirmed live: a fully-approved partner logging back in got dumped straight onto a blank
+      // edit form instead of Home. verifyOtp() returns the real partner doc, so route on it:
+      if (partner.verificationStatus === "approved") {
+        // Bubbles up to the top-level Home route — not part of this nested Onboarding stack.
+        navigation.navigate("HomeOffline");
+      } else if (partner.fullName) {
+        // Submitted personal info at least once before but isn't approved yet (under review,
+        // rejected, or asked to resubmit) — VerificationStatus.jsx shows their real state and
+        // lets them act on it, rather than re-showing a blank Personal Information form.
+        navigation.navigate("OnboardingStatus");
+      } else {
+        // Brand new partner, first-ever OTP verify — nothing submitted yet.
+        navigation.navigate("OnboardingPersonalInfo");
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -45,7 +60,13 @@ export default function OtpVerification() {
 
   async function handleResend() {
     if (secondsLeft > 0) return;
-    await requestOtp(pendingPhone);
+    setError(null);
+    try {
+      await requestOtp(pendingPhone);
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
     setSecondsLeft(RESEND_SECONDS);
   }
 
@@ -67,6 +88,18 @@ export default function OtpVerification() {
       <View className="w-full pt-9">
         <OtpInput value={otp} onChange={setOtp} />
       </View>
+
+      {/* DEV-ONLY: no real SMS provider exists anywhere in this codebase (see
+          server/services/otp.service.js) — this is the only way to actually test the OTP flow.
+          devOtp is only ever set when the backend response includes one, which itself only
+          happens when NODE_ENV !== 'production'; never rendered against a real prod backend. */}
+      {devOtp && (
+        <Pressable onPress={() => setOtp(devOtp)} className="w-full px-6 pt-3">
+          <Text className="text-center font-jakarta-medium text-xs text-muted-foreground">
+            Dev OTP: {devOtp} (tap to fill)
+          </Text>
+        </Pressable>
+      )}
 
       {error && (
         <Text className="w-full px-6 pt-3 text-center text-sm text-destructive">{error}</Text>
