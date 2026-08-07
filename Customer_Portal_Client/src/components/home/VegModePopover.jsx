@@ -1,0 +1,139 @@
+import { useEffect, useState } from "react";
+import { Modal, Pressable, useWindowDimensions, View } from "react-native";
+
+import Button from "@/components/ui/Button";
+import Text from "@/components/ui/Text";
+import { cn } from "@/lib/utils";
+
+// Figma "07 · Home — veg mode popover". A card anchored under the VEG Only tile
+// in the search bar, right edges aligned. The radio choice is a draft until
+// "Apply" is pressed, so dismissing the popover leaves the feed untouched.
+const CARD_WIDTH = 250;
+const ANCHOR_GAP = 8;
+const SCREEN_EDGE = 12;
+
+export const VEG_SCOPES = {
+  ALL: "all",
+  PURE_VEG: "pure-veg",
+};
+
+const OPTIONS = [
+  { value: VEG_SCOPES.ALL, label: "All restaurants" },
+  { value: VEG_SCOPES.PURE_VEG, label: "Pure veg restaurants only" },
+];
+
+function RadioRow({ label, selected, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={label}
+      className="flex-row items-center gap-3 py-1"
+    >
+      <View
+        className={cn(
+          "size-[18px] items-center justify-center rounded-full border-2",
+          selected ? "border-[#43A047]" : "border-border-strong",
+        )}
+      >
+        {selected ? <View className="size-2.5 rounded-full bg-[#43A047]" /> : null}
+      </View>
+
+      <Text
+        className={cn(
+          "flex-1 font-jakarta-medium text-[13px] leading-[18px]",
+          selected ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+export default function VegModePopover({
+  visible,
+  anchor,
+  value = VEG_SCOPES.ALL,
+  onApply,
+  onMoreSettings,
+  onDismiss,
+}) {
+  const { width: screenWidth } = useWindowDimensions();
+  const [draft, setDraft] = useState(value);
+
+  // Re-open always starts from the committed scope, discarding whatever the
+  // last dismissed-without-applying pass left behind.
+  useEffect(() => {
+    if (visible) setDraft(value);
+  }, [visible, value]);
+
+  // `anchor` is a measureInWindow box, so these are window coordinates — which
+  // is what the (status-bar-translucent) modal lays out in too.
+  const top = anchor ? anchor.y + anchor.height + ANCHOR_GAP : 180;
+  const preferredLeft = anchor
+    ? anchor.x + anchor.width - CARD_WIDTH
+    : screenWidth - CARD_WIDTH - 24;
+  const left = Math.min(
+    Math.max(preferredLeft, SCREEN_EDGE),
+    Math.max(screenWidth - CARD_WIDTH - SCREEN_EDGE, SCREEN_EDGE),
+  );
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onDismiss}
+    >
+      <Pressable
+        className="flex-1 bg-white/60"
+        onPress={onDismiss}
+        accessibilityRole="button"
+        accessibilityLabel="Close veg mode options"
+      />
+
+      <View
+        style={{ position: "absolute", top, left, width: CARD_WIDTH }}
+        className="rounded-2xl bg-card p-4 shadow-lg shadow-black/25"
+      >
+        <Text className="font-jakarta-semibold text-[14px] leading-[20px] text-foreground">
+          See veg dishes from
+        </Text>
+
+        <View className="mt-2.5 gap-1.5">
+          {OPTIONS.map((option) => (
+            <RadioRow
+              key={option.value}
+              label={option.label}
+              selected={draft === option.value}
+              onPress={() => setDraft(option.value)}
+            />
+          ))}
+        </View>
+
+        <Button
+          size="sm"
+          className="mt-4 w-full bg-[#43A047] shadow-[#43A047]/40"
+          onPress={() => onApply?.(draft)}
+        >
+          Apply
+        </Button>
+
+        <Pressable
+          onPress={onMoreSettings}
+          hitSlop={6}
+          className="mt-2.5 items-center py-1"
+          accessibilityRole="button"
+          accessibilityLabel="More settings"
+        >
+          <Text className="font-jakarta-medium text-[12px] leading-[16px] text-muted-foreground">
+            More settings
+          </Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
+}

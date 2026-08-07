@@ -1,0 +1,86 @@
+import { Linking, ScrollView, View } from "react-native";
+
+import { useFeed } from "@/context/FeedContext";
+import Screen from "@/components/ui/Screen";
+import VegModeBanner from "@/components/home/VegModeBanner";
+import DeliveryTimeline from "@/components/orders/DeliveryTimeline";
+import EtaCard from "@/components/orders/EtaCard";
+import OrderSummaryCard from "@/components/orders/OrderSummaryCard";
+import PartnerCard from "@/components/orders/PartnerCard";
+import TrackingMap from "@/components/orders/TrackingMap";
+import { TRACKED_ORDER } from "@/data/orders";
+import { accentFor } from "@/lib/accent";
+
+// How far the ETA card is pulled up over the map. The map is scenery; the card
+// is what's being read, and the overlap is what stops the screen opening on a
+// full band of scenery before the arrival time.
+const CARD_OVERLAP = 28;
+
+const SCROLL_PADDING = 32;
+
+// Figma "24 · Live order tracking" and its veg-mode twin. The screen a customer
+// leaves open on the counter while they wait, so it's built to be read at a
+// glance from across the room and to answer, in this order: when, who, what.
+//
+// It reads its order from the seed in `data/orders` rather than from route
+// params — the params only carry which storefront was ordered from, and an
+// order that has been paid for belongs to the server, not to a navigation
+// stack. Swap the seed for a query when the orders endpoint lands.
+//
+// Nothing here refreshes yet. The dispatcher's socket is already a dependency
+// (`socket.io-client`), and the partner's position, the stage and the ETA are
+// the three things it will move — which is why they're read off one order
+// object instead of being spread across component state.
+export default function OrderTracking({ navigation, route }) {
+  const { vegOnly } = useFeed();
+  const accent = accentFor(vegOnly);
+
+  // The storefront the order was placed with, if tracking was reached straight
+  // from a confirmation. The seeded order names its own kitchen otherwise.
+  const restaurantName = route.params?.restaurantName;
+
+  const order = restaurantName
+    ? { ...TRACKED_ORDER, restaurant: { ...TRACKED_ORDER.restaurant, name: restaurantName } }
+    : TRACKED_ORDER;
+
+  // No partner-contact endpoint yet: the masked number and the chat thread are
+  // both dispatcher-side. Until they exist the call goes through the OS dialler
+  // on the support line and the chat lands on the support placeholder, so
+  // neither control is dead on a screen where being unable to reach anyone is
+  // the worst thing that can happen.
+  const call = () => Linking.openURL("tel:+911800000000").catch(() => {});
+
+  const chat = () => navigation.navigate("Support");
+
+  // Back from tracking goes to the feed, never to the confirmation screen the
+  // customer came through: an order that has been paid for has nothing left to
+  // confirm, and the checkout stack behind it was already reset away.
+  const back = () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Home"));
+
+  return (
+    <Screen edges={["top"]}>
+      {vegOnly ? (
+        <View className="px-3 pb-1">
+          <VegModeBanner className="w-full justify-center py-2" />
+        </View>
+      ) : null}
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: SCROLL_PADDING }}
+      >
+        <TrackingMap accent={accent} onBack={back} />
+
+        <View className="px-4" style={{ marginTop: -CARD_OVERLAP }}>
+          <EtaCard order={order} vegOnly={vegOnly} />
+
+          <DeliveryTimeline stage={order.stage} className="mt-4" />
+
+          <PartnerCard partner={order.partner} accent={accent} onCall={call} onChat={chat} className="mt-4" />
+
+          <OrderSummaryCard order={order} accent={accent} vegOnly={vegOnly} className="mt-4" />
+        </View>
+      </ScrollView>
+    </Screen>
+  );
+}
