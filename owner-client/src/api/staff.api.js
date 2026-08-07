@@ -22,7 +22,7 @@ export const staffApi = {
   updateOrderStatus: (restaurantId, orderId, newStatus) =>
     client.patch(
       `/staff/${restaurantId}/kitchen/orders/${orderId}/status`,
-      { newStatus },
+      { orderStatus: newStatus },
       S,
     ),
 

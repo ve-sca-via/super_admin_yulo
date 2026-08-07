@@ -53,7 +53,7 @@ export function useUpdateOrderStatus(restaurantId) {
         return {
           preparing: all.filter((o) => o.status === "preparing"),
           ready:     all.filter((o) => o.status === "ready"),
-          completed: all.filter((o) => ["delivered", "out_for_delivery"].includes(o.status)),
+          completed: all.filter((o) => o.status === "completed"),
         };
       });
 

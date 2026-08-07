@@ -28,6 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+
+const DESCRIPTION_MAX_LENGTH = 200;
 import {
   Table,
   TableBody,
@@ -181,10 +183,10 @@ export default function MenuManagement() {
             <div className="flex items-center justify-between">
               <Label>Description</Label>
               <span className="text-xs text-muted-foreground">
-                {(item.description ?? "").length}/{item.descriptionMax}
+                {(item.description ?? "").length}/{DESCRIPTION_MAX_LENGTH}
               </span>
             </div>
-            <Textarea value={item.description} maxLength={item.descriptionMax} onChange={(e) => setItem((i) => ({ ...i, description: e.target.value }))} />
+            <Textarea value={item.description} maxLength={DESCRIPTION_MAX_LENGTH} onChange={(e) => setItem((i) => ({ ...i, description: e.target.value }))} />
           </div>
 
           <div className="space-y-1.5">

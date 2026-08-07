@@ -123,11 +123,11 @@ export default function BillDetails() {
           </Button>
           <Button
             onClick={handleMarkPaid}
-            disabled={paid || marking}
+            disabled={paid}
             className="gap-2 bg-brand-red text-white hover:bg-brand-red/90 disabled:opacity-70"
           >
             <Check className="h-4 w-4" />
-            {paid ? "Paid ✓" : marking ? "Processing…" : "Mark As Paid"}
+            {paid ? "Paid ✓" : "Mark As Paid"}
           </Button>
         </div>
       </div>

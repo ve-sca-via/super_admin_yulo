@@ -7,6 +7,9 @@ export const ownerApi = {
   listRestaurants: () => client.get("/owner/restaurants"),
   createRestaurant: (body) => client.post("/owner/restaurants", body),
 
+  // ── Profile (user-scoped, not restaurant-scoped) ────────────────────
+  updateProfile: (body) => client.patch("/owner/profile", body),
+
   // ── Dashboard ────────────────────────────────────────────────────
   getDashboardKPIs:    (rId)              => client.get(`/owner/${rId}/dashboard`),
   getSalesChart:       (rId, period="week") => client.get(`/owner/${rId}/dashboard/sales`, { params: { period } }),

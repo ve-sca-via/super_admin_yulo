@@ -98,7 +98,7 @@ export default function Menu() {
 
   return (
     <CustomerLayout
-      title={data.restaurant.name}
+      title={data.restaurant?.name ?? "Menu"}
       showNav
       activeNav="Menu"
       footer={cartBar}
