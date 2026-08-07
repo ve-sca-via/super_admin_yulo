@@ -33,7 +33,17 @@ export const getRestaurant = asyncHandler(async (req, res) => {
 });
 
 export const updateRestaurant = asyncHandler(async (req, res) => {
-  const allowed = ['name', 'description', 'cuisineTypes', 'address', 'location', 'isActive'];
+  const allowed = [
+    'name',
+    'description',
+    'cuisineTypes',
+    'address',
+    'location',
+    'isActive',
+    'isPureVeg',
+    'vegFleetAvailable',
+    'badges',
+  ];
   const updates = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key];

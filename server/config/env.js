@@ -30,6 +30,8 @@ const schema = z.object({
   DELIVERY_PARTNER_MAX_CONCURRENT_ORDERS: z.coerce.number().default(1),
   DELIVERY_OFFER_WINDOW_SECONDS: z.coerce.number().default(20),
   DELIVERY_PARTNER_PER_KM_RATE: z.coerce.number().default(5),
+  CART_PLATFORM_FEE: z.coerce.number().default(6),
+  CART_TAX_PERCENT: z.coerce.number().default(5),
 });
 
 const result = schema.safeParse(process.env);

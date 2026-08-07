@@ -8,6 +8,7 @@ import { sendSuccess } from '../../utils/ApiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { maxConcurrentOrdersPerPartner, perDeliveryRate, perKmRate } from '../../config/finance.config.js';
 import { createOrderBill } from '../../services/billing.service.js';
+import { notifyService } from '../../services/notify.service.js';
 import {
   autoAssign,
   expireIfStale,
@@ -63,7 +64,17 @@ export const acceptOrder = asyncHandler(async (req, res) => {
     assignedAt: now,
     assignedBy: 'auto',
   });
+  // A partner only ever reaches this point on a vegFleetOptIn order because
+  // rankCandidates' requireFleetType already restricted the offer to a veg-fleet partner
+  // (or the customer explicitly relaxed that via fallback) — either way, an actual
+  // assignment now exists, so the countdown/decision UI (screen 23) is done.
+  const wasSearchingVegFleet = order.vegFleetOptIn && order.vegFleetAssignmentStatus !== 'not_requested';
+  if (wasSearchingVegFleet) {
+    order.vegFleetAssignmentStatus = 'assigned';
+    order.vegFleetSearchDeadline = null;
+  }
   await order.save();
+  if (wasSearchingVegFleet) notifyService.vegFleetStatusUpdated(order);
 
   // Mirrors the old synchronous autoAssign's behavior: mark the partner busy once this
   // acceptance pushes them to their concurrency limit, so they're skipped for further offers.
@@ -262,7 +273,13 @@ export const deliverOrder = asyncHandler(async (req, res) => {
 
   order.deliveryAssignment.status = 'delivered';
   order.deliveredAt = new Date();
-  if (order.paymentStatus === 'pending') order.paymentStatus = 'paid';
+  // 'pending_cod' (checkout-flow COD orders, Prompt 11) means the same thing 'pending'
+  // used to mean here for a cash order — cash collected in person, now confirmed by the
+  // partner. Still covers plain 'pending' too, for the raw-items POST /api/orders path,
+  // which never sets 'pending_cod'.
+  if (order.paymentStatus === 'pending' || order.paymentStatus === 'pending_cod') {
+    order.paymentStatus = 'paid';
+  }
 
   // kitchen.service.js's updateOrderStatus already does this same (order.status='delivered' +
   // createOrderBill) when a delivered transition comes from the kitchen side — read that logic

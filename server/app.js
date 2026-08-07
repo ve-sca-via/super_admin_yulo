@@ -10,8 +10,15 @@ import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import restaurantRoutes from './routes/restaurant.routes.js';
+import itemRoutes from './routes/item.routes.js';
+import searchRoutes from './routes/search.routes.js';
+import homeRoutes from './routes/home.routes.js';
+import cartRoutes from './routes/cart.routes.js';
+import checkoutRoutes from './routes/checkout.routes.js';
 import orderRoutes from './routes/order.routes.js';
+import webhookRoutes from './routes/webhook.routes.js';
 import reviewRoutes from './routes/review.routes.js';
+import supportRoutes from './routes/support.routes.js';
 import ownerRouter from './routes/owner/index.js';
 import staffRouter from './routes/staff/index.js';
 import adminRouter from './routes/admin/index.js';
@@ -34,6 +41,17 @@ app.use(helmet());
 // comma-separated allowlist (the production case) is unaffected, still exact-matched as before.
 const allowedOrigins = env.ALLOWED_ORIGINS.split(',').map((o) => o.trim());
 app.use(cors({ origin: allowedOrigins.includes('*') ? true : allowedOrigins, credentials: true }));
+
+// Mounted BEFORE express.json(): Razorpay signs the exact raw request bytes, which
+// express.json() below would already have parsed (and could re-serialize differently)
+// by the time any route further down the stack saw them. express.raw() here — applied
+// only to this one path, not globally — is what lets controllers/webhook.controller.js
+// verify against the untouched body. As a side effect this also runs before
+// cookieParser/pinoHttp/apiLimiter below; none of those matter for a signature-
+// authenticated, cookie-less server-to-server call, and apiLimiter's per-IP customer
+// assumption doesn't fit Razorpay's delivery pattern anyway.
+app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
+
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
 app.use(pinoHttp({ logger }));
@@ -42,8 +60,14 @@ app.use('/api', apiLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/restaurants', restaurantRoutes);
+app.use('/api/items', itemRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/home', homeRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/checkout', checkoutRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/support', supportRoutes);
 app.use('/api/owner', ownerRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/staff', staffRouter);

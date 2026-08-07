@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import SupportTicket from '../../models/SupportTicket.js';
+import * as supportTicketService from '../../services/supportTicket.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { sendSuccess } from '../../utils/ApiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -72,9 +73,7 @@ export const addMessage = asyncHandler(async (req, res) => {
   const ticket = await SupportTicket.findById(req.params.id);
   if (!ticket) throw new ApiError(404, 'NOT_FOUND', 'Ticket not found');
 
-  ticket.messages.push({ senderType: 'admin', sender: req.user._id, text, sentAt: new Date() });
-  if (ticket.status === 'open') ticket.status = 'in_progress';
-  await ticket.save();
+  await supportTicketService.addTicketMessage(ticket, { senderType: 'admin', sender: req.user._id, text });
 
   sendSuccess(res, 200, 'Message added', { ticket });
 });

@@ -16,6 +16,7 @@ const baseFields = {
   applicableCategories: z.array(z.string()).optional(),
   applicableSubCategories: z.array(z.string()).optional(),
   applicableItems: z.array(z.string()).optional(),
+  isFeatured: z.boolean().optional().default(false),
 };
 
 const dateRefine = (d) => d.endDate > d.startDate;

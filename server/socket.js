@@ -5,7 +5,7 @@ import { redis } from './config/redis.js';
 import Order from './models/Order.js';
 import Restaurant from './models/Restaurant.js';
 import * as liveMonitorService from './services/liveMonitor.service.js';
-import { sweepExpiredOffers } from './services/deliveryAssignment.service.js';
+import { sweepExpiredOffers, sweepExpiredVegFleetSearches } from './services/deliveryAssignment.service.js';
 import logger from './utils/logger.js';
 
 let io;
@@ -123,6 +123,11 @@ export function initSocket(httpServer) {
   // against a ~20s offer window without excessive DB load.
   setInterval(() => {
     sweepExpiredOffers().catch((err) => logger.error({ err }, 'sweepExpiredOffers failed'));
+    // Piggybacks on this same interval rather than a second scheduler — keeps
+    // veg-fleet-only orders actively retrying assignment (not just waiting on the next
+    // offer-expiry) and auto-extends the countdown once vegFleetSearchDeadline passes
+    // with no customer decision. See its own comment for why both are folded in here.
+    sweepExpiredVegFleetSearches().catch((err) => logger.error({ err }, 'sweepExpiredVegFleetSearches failed'));
   }, 5_000);
 }
 

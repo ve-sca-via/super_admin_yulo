@@ -17,3 +17,10 @@ export const offerWindowSeconds = env.DELIVERY_OFFER_WINDOW_SECONDS;
 export const perKmRate = env.DELIVERY_PARTNER_PER_KM_RATE;
 
 export const computeCommission = (grossRevenue) => grossRevenue * (commissionPercent / 100);
+
+// Cart bill computation (services/cart.service.js) — simple flat/percentage constants,
+// not a per-restaurant or per-order-value rules engine. deliveryFee itself isn't here —
+// it comes from each restaurant's own Restaurant.delivery config (baseCharge/freeThreshold),
+// same as the rest of this codebase's per-restaurant settings.
+export const cartPlatformFee = env.CART_PLATFORM_FEE;
+export const cartTaxPercent = env.CART_TAX_PERCENT;

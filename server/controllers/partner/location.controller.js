@@ -1,8 +1,11 @@
 import { z } from 'zod';
 import DeliveryPartner from '../../models/DeliveryPartner.js';
+import Order from '../../models/Order.js';
+import { getIO } from '../../socket.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { sendSuccess } from '../../utils/ApiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import logger from '../../utils/logger.js';
 
 // [lng, lat], GeoJSON order — matches every other coordinates field in this codebase
 // (Restaurant.location, Order.deliveryAddress.coordinates).
@@ -27,6 +30,30 @@ export const updateLocation = asyncHandler(async (req, res) => {
       },
     }
   );
+
+  // Live-only broadcast to whichever order this partner is actively out for delivery on
+  // (if any) — no location-history collection, matching this codebase's established
+  // "don't over-engineer live state" precedent (see geo.service.js's
+  // LOCATION_FRESHNESS_SECONDS: only the latest ping is ever kept, nothing is archived).
+  const activeOrder = await Order.findOne({
+    'deliveryAssignment.partnerId': req.partner._id,
+    'deliveryAssignment.status': 'picked_up',
+  })
+    .select('_id')
+    .lean();
+
+  if (activeOrder) {
+    const [lng, lat] = result.data.coordinates;
+    try {
+      getIO().to(`order:${activeOrder._id}`).emit('partner_location_updated', {
+        orderId: activeOrder._id,
+        lat,
+        lng,
+      });
+    } catch (err) {
+      logger.error({ err, orderId: activeOrder._id }, 'Failed to emit partner_location_updated');
+    }
+  }
 
   sendSuccess(res, 200, 'Location updated', null);
 });

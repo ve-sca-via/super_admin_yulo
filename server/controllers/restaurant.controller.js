@@ -2,55 +2,98 @@ import Restaurant from '../models/Restaurant.js';
 import Review from '../models/Review.js';
 import * as menuService from '../services/menu.service.js';
 import * as cacheService from '../services/cache.service.js';
+import * as favoriteService from '../services/favorite.service.js';
+import * as searchService from '../services/search.service.js';
+import * as restaurantService from '../services/restaurant.service.js';
+import { escapeRegExp } from '../utils/regex.js';
 import { sendSuccess } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 const PAGE_SIZE = 20;
 
+const getFavoritedRestaurantIds = (req) =>
+  req.user ? favoriteService.getFavoritedIdSet(req.user._id, 'restaurant') : null;
+
+const attachStartingPrices = async (restaurants) => {
+  const startingPrices = await menuService.getStartingPrices(restaurants.map((r) => r._id));
+  for (const r of restaurants) r.startingPrice = startingPrices.get(String(r._id)) ?? null;
+};
+
 export const listRestaurants = asyncHandler(async (req, res) => {
-  const { lat, lng, radius = 5, page = 1, q } = req.query;
+  const { lat, lng, radius = 5, page = 1, q, minRating, hasOffers, vegOnly } = req.query;
+  const favoritedIds = await getFavoritedRestaurantIds(req);
+  const parsedPage = Math.max(1, parseInt(page, 10) || 1);
 
-  // Name search — regex, no text index required
-  if (q) {
-    const results = await Restaurant.find({
-      name: { $regex: q.trim(), $options: 'i' },
-      isActive: true,
-    })
-      .limit(PAGE_SIZE)
-      .lean();
-    return sendSuccess(res, 200, 'Search results', { restaurants: results });
+  const extraFilter = {};
+  if (minRating) extraFilter.avgRating = { $gte: parseFloat(minRating) };
+  if (vegOnly === 'true') extraFilter.isPureVeg = true;
+  if (hasOffers === 'true') {
+    extraFilter._id = { $in: await searchService.getRestaurantIdsWithActiveOffers() };
+  }
+  const hasExtraFilters = Boolean(minRating || vegOnly === 'true' || hasOffers === 'true');
+
+  // Geo-browse (no `q`) sorts+filters via $near; a text/filter search doesn't need a
+  // location at all. The two are mutually exclusive below because MongoDB doesn't allow
+  // $near inside the $match an aggregation-based count uses — see the `useGeoNear` branch.
+  const useGeoNear = !q;
+
+  // Only the plain geo-browse (no q, no extra filters) is cacheable — search/filter
+  // combinations are far less repeatable and would need a combinatorial cache key.
+  const isCacheable = useGeoNear && !hasExtraFilters;
+  const cacheKey = isCacheable
+    ? `cache:restaurants:${parseFloat(lat)}:${parseFloat(lng)}:${radius}:${parsedPage}`
+    : null;
+
+  if (cacheKey) {
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      // `cached` is a fresh object from JSON.parse (see cache.service.js) — mutating it
+      // here only affects this response, never what's stored in Redis for the next requester.
+      favoriteService.annotateRestaurants(cached.restaurants, favoritedIds);
+      return sendSuccess(res, 200, 'Nearby restaurants', cached);
+    }
   }
 
-  if (!lat || !lng) {
-    throw new ApiError(400, 'VALIDATION_ERROR', 'lat and lng are required');
+  let data;
+  if (useGeoNear) {
+    if (!lat || !lng) throw new ApiError(400, 'VALIDATION_ERROR', 'lat and lng are required');
+
+    // total/pages intentionally omitted: MongoDB only allows $geoWithin/$geoIntersects
+    // inside an aggregation $match (which is what countDocuments() uses under the hood) —
+    // not $near/$nearSphere. The pre-Prompt-7 version of this endpoint never computed
+    // total/pages for the geo-browse case either, for the same reason.
+    // restaurantService.findNearby is the same $near query the home feed's
+    // nearbyRestaurants reuses — see services/restaurant.service.js.
+    const restaurants = await restaurantService.findNearby(lat, lng, radius, {
+      page: parsedPage,
+      limit: PAGE_SIZE,
+      extraFilter,
+    });
+    await attachStartingPrices(restaurants);
+    data = { restaurants, page: parsedPage };
+  } else {
+    const regex = new RegExp(escapeRegExp(q.trim()), 'i');
+    const filter = { isActive: true, ...extraFilter, $or: [{ name: regex }, { cuisineTypes: regex }] };
+
+    const [restaurants, total] = await Promise.all([
+      Restaurant.find(filter)
+        .skip((parsedPage - 1) * PAGE_SIZE)
+        .limit(PAGE_SIZE)
+        .lean(),
+      Restaurant.countDocuments(filter),
+    ]);
+    await attachStartingPrices(restaurants);
+    data = { restaurants, total, page: parsedPage, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
   }
 
-  const parsedLat = parseFloat(lat);
-  const parsedLng = parseFloat(lng);
-  const parsedPage = Math.max(1, parseInt(page, 10));
-  const radiusMeters = parseFloat(radius) * 1000;
-
-  const cacheKey = `cache:restaurants:${parsedLat}:${parsedLng}:${radius}:${parsedPage}`;
-  const cached = await cacheService.get(cacheKey);
-  if (cached) return sendSuccess(res, 200, 'Nearby restaurants', cached);
-
-  const restaurants = await Restaurant.find({
-    location: {
-      $near: {
-        $geometry: { type: 'Point', coordinates: [parsedLng, parsedLat] },
-        $maxDistance: radiusMeters,
-      },
-    },
-    isActive: true,
-  })
-    .skip((parsedPage - 1) * PAGE_SIZE)
-    .limit(PAGE_SIZE)
-    .lean();
-
-  const data = { restaurants, page: parsedPage };
-  await cacheService.set(cacheKey, data, 60);
-  sendSuccess(res, 200, 'Nearby restaurants', data);
+  // Cache BEFORE annotating isFavorited: startingPrice is fine to share (not
+  // user-specific), but isFavorited must never be baked into the shared 60s cache entry —
+  // the next request for this same lat/lng/radius/page could be a different (or
+  // anonymous) user.
+  if (cacheKey) await cacheService.set(cacheKey, data, 60);
+  favoriteService.annotateRestaurants(data.restaurants, favoritedIds);
+  sendSuccess(res, 200, q ? 'Search results' : 'Nearby restaurants', data);
 });
 
 export const getRestaurant = asyncHandler(async (req, res) => {
@@ -59,12 +102,44 @@ export const getRestaurant = asyncHandler(async (req, res) => {
     isActive: true,
   }).lean();
   if (!restaurant) throw new ApiError(404, 'NOT_FOUND', 'Restaurant not found');
+
+  const favoritedIds = await getFavoritedRestaurantIds(req);
+  favoriteService.annotateRestaurants(restaurant, favoritedIds);
+
   sendSuccess(res, 200, 'Restaurant detail', { restaurant });
 });
 
 export const getMenu = asyncHandler(async (req, res) => {
   const menu = await menuService.getMenu(req.params.id);
+
+  // Same cache-then-annotate ordering as listRestaurants above — menuService.getMenu()
+  // has already completed its own 5-min cache.set() by the time it returns to us, so
+  // annotating the returned object here never leaks into what's cached.
+  const favoritedIds = req.user
+    ? await favoriteService.getFavoritedIdSet(req.user._id, 'menu_item')
+    : null;
+  favoriteService.annotateMenuFavorites(menu, favoritedIds);
+
   sendSuccess(res, 200, 'Menu', { menu });
+});
+
+export const searchRestaurantMenu = asyncHandler(async (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) throw new ApiError(400, 'VALIDATION_ERROR', 'q is required');
+
+  const items = await menuService.searchMenu(req.params.id, q);
+
+  const favoritedIds = req.user
+    ? await favoriteService.getFavoritedIdSet(req.user._id, 'menu_item')
+    : null;
+  favoriteService.annotateEntity(items, favoritedIds);
+
+  sendSuccess(res, 200, 'Menu search results', { items });
+});
+
+export const getMenuCategories = asyncHandler(async (req, res) => {
+  const categories = await menuService.getMenuCategories(req.params.id);
+  sendSuccess(res, 200, 'Menu categories', { categories });
 });
 
 export const getReviews = asyncHandler(async (req, res) => {
