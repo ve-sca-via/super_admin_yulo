@@ -293,6 +293,7 @@ export default function Home({ navigation }) {
         <HomeBottomNav
           value={tab}
           onChange={(key) => (key === "history" ? navigation?.navigate("Orders") : setTab(key))}
+          onScan={() => alert("QR Scanner coming soon!")}
         />
       </View>
     </Screen>
