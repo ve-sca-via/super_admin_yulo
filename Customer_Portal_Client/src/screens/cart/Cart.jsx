@@ -8,7 +8,7 @@ import Card from "@/components/ui/Card";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import BillDetails from "@/components/cart/BillDetails";
-import { billFor, lineTotal } from "@/data/cart";
+import { lineTotal } from "@/data/cart";
 import { formatPrice } from "@/data/menu";
 import { accentFor } from "@/lib/accent";
 
@@ -20,11 +20,9 @@ const SCROLL_PADDING = 120;
 // which is the next screen. Veg mode repaints the accents green here the same as
 // everywhere else, which is the second frame in the design.
 export default function Cart({ navigation }) {
-  const { cart, vegOnly } = useFeed();
+  const { cart, bill, vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
   const insets = useSafeAreaInsets();
-
-  const bill = billFor(cart);
 
   const header = (
     <View className="flex-row items-center gap-4 px-6 pt-2">
@@ -157,10 +155,10 @@ export default function Cart({ navigation }) {
           size="lg"
           style={{ backgroundColor: accent.icon }}
           className="w-full shadow-lg shadow-black/20"
-          accessibilityLabel={`Proceed to checkout, ${formatPrice(bill.toPay)}`}
+          accessibilityLabel={`Proceed to checkout, ${formatPrice(bill?.toPay || 0)}`}
         >
           <Text className="font-jakarta-bold text-[17px] leading-[24px] text-white">
-            Proceed to checkout · {formatPrice(bill.toPay)}
+            Proceed to checkout · {formatPrice(bill?.toPay || 0)}
           </Text>
         </Button>
       </View>

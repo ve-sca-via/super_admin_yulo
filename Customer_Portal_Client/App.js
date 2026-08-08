@@ -16,6 +16,8 @@ import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import { CustomerAuthProvider } from "@/context/CustomerAuthContext";
 import { FeedProvider } from "@/context/FeedContext";
 import RootNavigator from "@/navigation/RootNavigator";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/api/queryClient";
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -36,13 +38,15 @@ export default function App() {
         {/* Inside the provider, so the fallback screen it renders can still
             read the safe-area insets it needs to keep clear of the notch. */}
         <ErrorBoundary>
-          <CustomerAuthProvider>
-            <FeedProvider>
-              <NavigationContainer>
-                <RootNavigator />
-              </NavigationContainer>
-            </FeedProvider>
-          </CustomerAuthProvider>
+          <QueryClientProvider client={queryClient}>
+            <CustomerAuthProvider>
+              <FeedProvider>
+                <NavigationContainer>
+                  <RootNavigator />
+                </NavigationContainer>
+              </FeedProvider>
+            </CustomerAuthProvider>
+          </QueryClientProvider>
         </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>

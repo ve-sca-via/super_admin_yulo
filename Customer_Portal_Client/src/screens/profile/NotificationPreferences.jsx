@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Linking, Pressable, ScrollView, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -9,6 +9,8 @@ import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import PageHeader from "@/components/customer/PageHeader";
 import { accentFor } from "@/lib/accent";
+import { usePreferences, useUpdatePreferences } from "@/hooks/useUser";
+import { ActivityIndicator } from "react-native";
 
 // Room under the last card for the save bar.
 const SCROLL_PADDING = 120;
@@ -28,18 +30,35 @@ export default function NotificationPreferences({ navigation }) {
   const { vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
   const insets = useSafeAreaInsets();
+  
+  const { data: preferences, isLoading } = usePreferences();
+  const updatePreferences = useUpdatePreferences();
 
-  const [orderUpdates, setOrderUpdates] = useState(true);
+  // Find the initial state from remote if loaded
+  const notificationsCat = preferences?.notifications?.categories?.find(c => c.key === "orders_and_purchases");
+  const defaultEnabled = notificationsCat ? notificationsCat.enabled : true;
+
+  const [orderUpdates, setOrderUpdates] = useState(defaultEnabled);
   const [saved, setSaved] = useState(true);
+
+  useEffect(() => {
+    if (preferences && saved) {
+      setOrderUpdates(defaultEnabled);
+    }
+  }, [preferences, defaultEnabled, saved]);
 
   const change = (value) => {
     setOrderUpdates(value);
     setSaved(false);
   };
 
-  // Saving with nothing changed is the only state the button is dead in, so
-  // pressing it always means something was actually written.
   const save = () => {
+    updatePreferences.mutate({
+      notifications: {
+        pushEnabled: preferences?.notifications?.pushEnabled ?? false,
+        categories: [{ key: "orders_and_purchases", enabled: orderUpdates }]
+      }
+    });
     setSaved(true);
     if (navigation.canGoBack()) navigation.goBack();
   };
@@ -53,55 +72,58 @@ export default function NotificationPreferences({ navigation }) {
         <PageHeader title="Notification preferences" />
 
         <View className="mt-6 gap-4 px-5">
-          <Card className="w-full p-5">
-            <View className="flex-row items-center justify-between gap-3">
-              <Text className="flex-1 font-jakarta-bold text-[19px] leading-[26px] text-foreground">
-                Push notifications
-              </Text>
+          {isLoading ? (
+            <ActivityIndicator size="large" color={accent.icon} className="mt-10" />
+          ) : (
+            <>
+              <Card className="w-full p-5">
+                <View className="flex-row items-center justify-between gap-3">
+                  <Text className="flex-1 font-jakarta-bold text-[19px] leading-[26px] text-foreground">
+                    Push notifications
+                  </Text>
 
-              <View className="rounded-full bg-muted px-4 py-1.5">
-                <Text className="font-jakarta-medium text-[15px] leading-[21px] text-muted-foreground">
-                  Off
+                  <View className="rounded-full bg-muted px-4 py-1.5">
+                    <Text className="font-jakarta-medium text-[15px] leading-[21px] text-muted-foreground">
+                      Off
+                    </Text>
+                  </View>
+                </View>
+
+                <Text className="mt-2 font-jakarta text-[16px] leading-[23px] text-muted-foreground">
+                  To enable notifications, go to{" "}
+                  <Text
+                    onPress={() => Linking.openSettings?.()?.catch?.(() => {})}
+                    style={{ color: accent.icon }}
+                    className="font-jakarta-semibold text-[16px] leading-[23px]"
+                    accessibilityRole="link"
+                  >
+                    settings
+                  </Text>
                 </Text>
-              </View>
-            </View>
+              </Card>
 
-            <Text className="mt-2 font-jakarta text-[16px] leading-[23px] text-muted-foreground">
-              To enable notifications, go to{" "}
-              {/* Optional-called: the web build's Linking has no
-                  `openSettings`, and there are no OS notification settings to
-                  open there anyway. */}
-              <Text
-                onPress={() => Linking.openSettings?.()?.catch?.(() => {})}
-                style={{ color: accent.icon }}
-                className="font-jakarta-semibold text-[16px] leading-[23px]"
-                accessibilityRole="link"
-              >
-                settings
-              </Text>
-            </Text>
-          </Card>
+              <Card className="w-full p-5">
+                <View className="flex-row items-center justify-between gap-3">
+                  <Text className="flex-1 font-jakarta-bold text-[19px] leading-[26px] text-foreground">
+                    Orders and purchases
+                  </Text>
 
-          <Card className="w-full p-5">
-            <View className="flex-row items-center justify-between gap-3">
-              <Text className="flex-1 font-jakarta-bold text-[19px] leading-[26px] text-foreground">
-                Orders and purchases
-              </Text>
+                  <Switch
+                    value={orderUpdates}
+                    onValueChange={change}
+                    trackColor={{ false: "#D4D4D4", true: accent.icon }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor="#D4D4D4"
+                    accessibilityLabel="Order and purchase updates"
+                  />
+                </View>
 
-              <Switch
-                value={orderUpdates}
-                onValueChange={change}
-                trackColor={{ false: "#D4D4D4", true: accent.icon }}
-                thumbColor="#FFFFFF"
-                ios_backgroundColor="#D4D4D4"
-                accessibilityLabel="Order and purchase updates"
-              />
-            </View>
-
-            <Text className="mt-2 font-jakarta text-[16px] leading-[23px] text-muted-foreground">
-              Receive updates related to your order status, memberships, table bookings and more
-            </Text>
-          </Card>
+                <Text className="mt-2 font-jakarta text-[16px] leading-[23px] text-muted-foreground">
+                  Receive updates related to your order status, memberships, table bookings and more
+                </Text>
+              </Card>
+            </>
+          )}
         </View>
       </ScrollView>
 

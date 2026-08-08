@@ -7,7 +7,9 @@ import Text from "@/components/ui/Text";
 import DiscardCartDialog from "@/components/cart/DiscardCartDialog";
 import PageHeader from "@/components/customer/PageHeader";
 import FavouriteCard from "@/components/profile/FavouriteCard";
-import { RESTAURANTS, withVegCuisines } from "@/data/restaurants";
+import { withVegCuisines } from "@/data/restaurants";
+import { useFavorites } from "@/hooks/useUser";
+import { ActivityIndicator } from "react-native";
 
 const SCROLL_PADDING = 32;
 
@@ -18,11 +20,12 @@ const SCROLL_PADDING = 32;
 // There's no heart on these cards, following the design. A storefront leaves the
 // list from the feed card that put it there.
 export default function Favourites({ navigation }) {
-  const { cart, clearCart, favourites, vegOnly } = useFeed();
+  const { cart, clearCart, vegOnly } = useFeed();
+  const { data: remoteFavorites, isLoading } = useFavorites();
 
   const [pendingRestaurant, setPendingRestaurant] = useState(null);
 
-  const saved = RESTAURANTS.filter((restaurant) => favourites[restaurant.id]).map((restaurant) =>
+  const saved = (remoteFavorites || []).map((restaurant) =>
     withVegCuisines(restaurant, vegOnly),
   );
 
@@ -53,12 +56,14 @@ export default function Favourites({ navigation }) {
       >
         <PageHeader title="Favorites" />
 
-        {saved.length ? (
+        {isLoading ? (
+          <ActivityIndicator size="large" color="#FF5E00" className="mt-10" />
+        ) : saved.length ? (
           <View className="mt-6 gap-5 px-5">
             {saved.map((restaurant) => (
               <FavouriteCard
-                key={restaurant.id}
-                restaurant={restaurant}
+                key={restaurant._id}
+                restaurant={{ ...restaurant, id: restaurant._id }}
                 onPress={() => openRestaurant(restaurant)}
               />
             ))}

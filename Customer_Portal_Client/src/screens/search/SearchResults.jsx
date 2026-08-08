@@ -11,7 +11,8 @@ import StickyCartBar from "@/components/home/StickyCartBar";
 import { VEG_SCOPES } from "@/components/home/VegModePopover";
 import SearchFilterChips from "@/components/search/SearchFilterChips";
 import SearchTopBar from "@/components/search/SearchTopBar";
-import { RESTAURANTS, withVegCuisines } from "@/data/restaurants";
+import { useSearchResults } from "@/hooks/useSearch";
+import { ActivityIndicator } from "react-native";
 
 const cartRestaurant = require("@/assets/home/cart-restaurant-avatar.png");
 
@@ -34,37 +35,39 @@ export default function SearchResults({ navigation, route }) {
   // so the results list answers a card tap the same way the home feed does.
   const [pendingRestaurant, setPendingRestaurant] = useState(null);
 
-  const openMenu = (restaurantName) => navigation?.navigate("Menu", { restaurantName });
+  const openMenu = (restaurant) => navigation?.navigate("Menu", { restaurantId: restaurant.id, restaurantName: restaurant.name });
 
   const openRestaurant = (restaurant) => {
     if (cart && restaurant.name !== cart.restaurantName) {
       setPendingRestaurant(restaurant);
       return;
     }
-    openMenu(restaurant.name);
+    openMenu(restaurant);
   };
 
   const discardCart = () => {
     const next = pendingRestaurant;
     clearCart();
     setPendingRestaurant(null);
-    if (next) openMenu(next.name);
+    if (next) openMenu(next);
   };
 
-  // There's no search endpoint yet, so the term only titles the screen and the
-  // whole catalogue is listed under "All restaurants" — which is exactly what
-  // the Figma frames show for "gobhi". The chips do the narrowing. Swap for a
-  // `src/api/client` results query once discovery search lands.
-  const results = useMemo(
-    () =>
-      RESTAURANTS.filter((restaurant) => {
-        if (filters["pure-veg"] && !restaurant.pureVeg) return false;
-        if (filters["great-offers"] && !restaurant.greatOffer) return false;
-        if (filters["rating-4"] && Number(restaurant.rating) < 4) return false;
-        return true;
-      }).map((restaurant) => withVegCuisines(restaurant, vegOnly)),
-    [filters, vegOnly],
-  );
+  const { data: searchResponse, isLoading } = useSearchResults(query, filters, vegOnly);
+
+  const results = useMemo(() => {
+    if (!searchResponse?.data) return []; // Access data array from response if paginated
+    // Fallback if the response is just the array
+    const list = Array.isArray(searchResponse) ? searchResponse : searchResponse.data;
+    
+    return list.map(res => ({
+      ...res,
+      id: res._id,
+      image: cartRestaurant, // Map real images later
+      rating: res.avgRating?.toString() || "New",
+      deliveryTime: "30 min",
+      pureVeg: res.isPureVeg,
+    }));
+  }, [searchResponse]);
 
   return (
     <Screen edges={["top", "bottom"]}>
@@ -99,13 +102,17 @@ export default function SearchResults({ navigation, route }) {
 
         <SectionHeading className="mt-5 px-6">All restaurants</SectionHeading>
 
-        {results.length ? (
+        {isLoading ? (
+          <View className="mt-10 items-center justify-center">
+            <ActivityIndicator size="large" color="#FF5E00" />
+          </View>
+        ) : results.length ? (
           <View className="mt-3 gap-4 px-6">
             {results.map((restaurant) => (
               <RestaurantCardLarge
                 key={restaurant.id}
                 restaurant={restaurant}
-                favourite={!!favourites[restaurant.id]}
+                favourite={!!favourites[restaurant.id] || restaurant.isFavorited}
                 ratingTone="soft"
                 onToggleFavourite={() => toggleFavourite(restaurant.id)}
                 onPress={() => openRestaurant(restaurant)}
@@ -133,7 +140,7 @@ export default function SearchResults({ navigation, route }) {
             restaurantImage={cartRestaurant}
             itemCount={cart.itemCount}
             vegOnly={vegOnly}
-            onViewMenu={() => openMenu(cart.restaurantName)}
+            onViewMenu={() => openMenu({ id: cart.restaurantId, name: cart.restaurantName })}
             onViewCart={() => navigation?.navigate("Cart")}
             onDismiss={clearCart}
           />

@@ -14,6 +14,8 @@ import QuantityStepper from "@/components/menu/QuantityStepper";
 import { cartLineFor } from "@/data/cart";
 import { defaultSelection, findItem, formatPrice, menuFor, totalFor } from "@/data/menu";
 import { accentFor } from "@/lib/accent";
+import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { useToggleItemFavorite } from "@/hooks/useUser";
 
 // The photo runs edge to edge under the status bar, so the two controls float on
 // it and carry the safe-area inset themselves — the same arrangement `MenuHero`
@@ -40,14 +42,26 @@ export default function ItemDetail({ navigation, route }) {
   const item = findItem(menu, route?.params?.itemId);
 
   const { cart, addToCart, clearCart, vegOnly } = useFeed();
+  const { user } = useCustomerAuth();
   const accent = accentFor(vegOnly);
   const insets = useSafeAreaInsets();
+  const toggleFavoriteMutation = useToggleItemFavorite();
 
   const groups = item?.detail?.choices ?? [];
 
   const [selection, setSelection] = useState(() => defaultSelection(groups));
   const [quantity, setQuantity] = useState(1);
-  const [saved, setSaved] = useState(false);
+  const [localSaved, setLocalSaved] = useState(false);
+  
+  const saved = localSaved || item?.isFavorited;
+
+  const handleToggleFavorite = () => {
+    const nextSaved = !saved;
+    setLocalSaved(nextSaved);
+    if (user && item) {
+      toggleFavoriteMutation.mutate({ id: item.id || item._id, isFavoriting: nextSaved });
+    }
+  };
 
   // Set only while the discard prompt is up: the dish is already assembled, so
   // agreeing to lose the other cart adds it without a second pass through the
@@ -134,7 +148,7 @@ export default function ItemDetail({ navigation, route }) {
                 keyed by storefront — so the heart is this screen's own state
                 until an item-level list exists. */}
             <Pressable
-              onPress={() => setSaved((current) => !current)}
+              onPress={handleToggleFavorite}
               className="h-12 flex-row items-center gap-2 rounded-full bg-card px-5 shadow-md shadow-black/25"
               accessibilityRole="button"
               accessibilityState={{ selected: saved }}

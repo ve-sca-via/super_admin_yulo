@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
 
 import { useFeed } from "@/context/FeedContext";
+import { useRecentSearches, usePopularSearches, useTypeahead, useAddRecentSearch } from "@/hooks/useSearch";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,7 @@ import PopularSearchGrid from "@/components/search/PopularSearchGrid";
 import RecentSearchList from "@/components/search/RecentSearchList";
 import SearchSuggestionList from "@/components/search/SearchSuggestionList";
 import SearchTopBar from "@/components/search/SearchTopBar";
+import { ActivityIndicator } from "react-native";
 
 const cartRestaurant = require("@/assets/home/cart-restaurant-avatar.png");
 const dishBiryani = require("@/assets/home/dish-biryani.png");
@@ -63,41 +65,45 @@ function Heading({ children, className }) {
 }
 
 export default function Search({ navigation }) {
-  // Veg mode, the cart and the recent terms are the same ones the home feed
-  // renders — read them from FeedContext so both screens edit one copy.
-  const { cart, clearCart, vegOnly, recentSearches, rememberSearch } = useFeed();
+  const { cart, clearCart, vegOnly } = useFeed();
 
   const [query, setQuery] = useState("");
 
   const trimmed = query.trim();
   const searching = trimmed.length > 0;
 
+  const { data: recentSearchesData } = useRecentSearches();
+  const { data: popularSearchesData } = usePopularSearches(vegOnly);
+  const { data: typeaheadData, isLoading: isLoadingTypeahead } = useTypeahead(trimmed);
+  const addRecentSearch = useAddRecentSearch();
+
   const suggestions = useMemo(() => {
-    if (!searching) return [];
-    const needle = trimmed.toLowerCase();
-    return DISH_CATALOGUE.filter((dish) => dish.label.toLowerCase().startsWith(needle)).slice(
-      0,
-      MAX_SUGGESTIONS,
-    );
-  }, [searching, trimmed]);
+    if (!typeaheadData?.results) return [];
+    return typeaheadData.results.map(res => ({
+      id: res.id || res._id,
+      label: res.name,
+      type: res.type === "restaurant" ? "Restaurant" : "Dish",
+      image: res.thumbnailUrl ? { uri: res.thumbnailUrl } : (res.type === "restaurant" ? cartRestaurant : dishBiryani),
+      offer: false,
+    })).slice(0, MAX_SUGGESTIONS);
+  }, [typeaheadData]);
 
-  const popular = useMemo(
-    () =>
-      POPULAR_SEARCHES.map((item) => ({
-        ...item,
-        label: vegOnly ? (item.vegLabel ?? item.label) : item.label,
-      })),
-    [vegOnly],
-  );
+  const popular = useMemo(() => {
+    if (!popularSearchesData) return [];
+    return popularSearchesData.map(item => ({
+      id: item._id || item.query, // Fallback if API gives strings
+      label: item.query || item,
+      image: categoryBiryani // Add fallback image if none provided by API
+    }));
+  }, [popularSearchesData]);
 
-  // Committing a term — typed and submitted, or picked off the suggestion
-  // list — remembers it and carries only the term to the results screen; the
-  // veg state and the cart it reads come from the same context this one uses.
+  const recentSearches = recentSearchesData || [];
+
   const submitSearch = (term) => {
     const value = term.trim();
     if (!value) return;
 
-    rememberSearch(value);
+    addRecentSearch.mutate(value);
     navigation?.navigate("SearchResults", { query: value });
   };
 
@@ -125,15 +131,19 @@ export default function Search({ navigation }) {
       >
         {searching ? (
           <View className="mt-4">
-            <SearchSuggestionList
-              items={suggestions}
-              matchLength={trimmed.length}
-              vegOnly={vegOnly}
-              onSelect={(dish) => {
-                setQuery(dish.label);
-                submitSearch(dish.label);
-              }}
-            />
+            {isLoadingTypeahead ? (
+              <ActivityIndicator size="small" color="#FF5E00" className="mt-5" />
+            ) : (
+              <SearchSuggestionList
+                items={suggestions}
+                matchLength={trimmed.length}
+                vegOnly={vegOnly}
+                onSelect={(dish) => {
+                  setQuery(dish.label);
+                  submitSearch(dish.label);
+                }}
+              />
+            )}
           </View>
         ) : (
           <>

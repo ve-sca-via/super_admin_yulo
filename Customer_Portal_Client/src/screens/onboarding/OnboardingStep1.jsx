@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { Image, Pressable, useWindowDimensions, View } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
+import Animated, { FadeInDown, FadeIn, ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing } from "react-native-reanimated";
 
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
@@ -17,13 +19,30 @@ const BLOB_HEIGHT = 152.365;
 const ILLUSTRATION_ASPECT = 295 / 365;
 
 function BlobDecoration({ scale }) {
+  const scaleAnim = useSharedValue(1);
+
+  useEffect(() => {
+    scaleAnim.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 4000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scaleAnim.value }],
+  }));
+
   return (
-    <Svg
-      width={BLOB_WIDTH * scale}
-      height={BLOB_HEIGHT * scale}
-      viewBox={`0 0 ${BLOB_WIDTH} ${BLOB_HEIGHT}`}
-      style={{ position: "absolute", top: 0, left: 12.7 * scale }}
-    >
+    <Animated.View style={[{ position: "absolute", top: 0, left: 12.7 * scale }, animatedStyle]}>
+      <Svg
+        width={BLOB_WIDTH * scale}
+        height={BLOB_HEIGHT * scale}
+        viewBox={`0 0 ${BLOB_WIDTH} ${BLOB_HEIGHT}`}
+      >
       <Defs>
         <LinearGradient id="onboardingBlobStep1" x1="258.635" y1="152.365" x2="105.799" y2="0.044" gradientUnits="userSpaceOnUse">
           <Stop offset="0" stopColor="#A4161A" />
@@ -37,6 +56,7 @@ function BlobDecoration({ scale }) {
         fill="url(#onboardingBlobStep1)"
       />
     </Svg>
+    </Animated.View>
   );
 }
 
@@ -49,35 +69,41 @@ export default function OnboardingStep1({ onNext }) {
     <Screen edges={["top", "bottom"]}>
       <BlobDecoration scale={scale} />
 
-      <View className="flex-1 items-center justify-center px-8">
-        <Image
+      <View className="flex-1 items-center justify-center px-10">
+        <Animated.Image
+          entering={ZoomIn.springify().damping(14)}
           source={storefront}
           style={{ width: illustrationWidth, height: illustrationWidth * ILLUSTRATION_ASPECT }}
           resizeMode="contain"
         />
 
-        <Text className="mt-8 text-center font-jakarta-extrabold text-[26px] uppercase leading-[32px] tracking-tight text-foreground">
-          Discover places{"\n"}near you
-        </Text>
+        <Animated.View entering={FadeInDown.delay(150).springify().damping(16)}>
+          <Text className="mt-8 text-center font-jakarta-extrabold text-[26px] uppercase leading-[32px] tracking-tight text-[#0F172A]">
+            Discover places{"\n"}near you
+          </Text>
+        </Animated.View>
 
-        <Text className="mt-4 text-center font-jakarta text-[15px] leading-[22px] text-muted-foreground">
-          We make it simple to find the food you crave. Enter your address and let us do the rest.
-        </Text>
+        <Animated.View entering={FadeInDown.delay(300).springify().damping(16)}>
+          <Text className="mt-4 text-center font-jakarta text-[15px] leading-[22px] text-[#64748B]">
+            We make it simple to find the food you crave. Enter your address and let us do the rest.
+          </Text>
+        </Animated.View>
       </View>
 
-      <View className="items-center gap-6 pb-10">
+      <Animated.View entering={FadeIn.delay(450)} className="items-center gap-6 pb-12">
         <Pressable
           onPress={onNext}
           hitSlop={8}
           className="flex-row items-center gap-1 py-2"
+          style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] }]}
           accessibilityLabel="Next"
         >
-          <Text className="font-jakarta-bold text-[15px] uppercase tracking-wide text-muted-foreground">Next</Text>
-          <ChevronRight size={18} color="#666666" />
+          <Text className="font-jakarta-bold text-[16px] uppercase tracking-wide text-[#9CA3AF]">Next</Text>
+          <ChevronRight size={20} color="#9CA3AF" />
         </Pressable>
 
         <OnboardingProgress index={0} count={3} />
-      </View>
+      </Animated.View>
     </Screen>
   );
 }

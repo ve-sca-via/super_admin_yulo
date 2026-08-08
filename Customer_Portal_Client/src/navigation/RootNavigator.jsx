@@ -29,7 +29,9 @@ import Favourites from "@/screens/profile/Favourites";
 import SavedAddresses from "@/screens/profile/SavedAddresses";
 import NotificationPreferences from "@/screens/profile/NotificationPreferences";
 import Settings from "@/screens/profile/Settings";
+import VegFleetPreference from "@/screens/profile/VegFleetPreference";
 import HelpSupport from "@/screens/support/HelpSupport";
+import SupportThread from "@/screens/support/SupportThread";
 
 const Stack = createNativeStackNavigator();
 
@@ -134,15 +136,15 @@ export default function RootNavigator() {
 
       <Stack.Screen name="Settings" component={Settings} />
 
+      <Stack.Screen name="VegFleetPreference" component={VegFleetPreference} />
+
       <Stack.Screen name="Notifications" component={NotificationPreferences} />
 
       <Stack.Screen name="Help" component={HelpSupport} />
 
       {/* Where the tracking screens send a customer who needs a person: the chat
           thread with the partner, and the help link under a live order. */}
-      <Stack.Screen name="Support">
-        {() => <PlaceholderScreen title="Chat & support" flow="the support flow" />}
-      </Stack.Screen>
+      <Stack.Screen name="Support" component={SupportThread} />
 
       {/* The remaining rows on the settings and profile lists name screens that
           haven't been built. One parameterised placeholder rather than a route

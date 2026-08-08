@@ -9,19 +9,14 @@
 // Every stage an order walks through, in order. The stage the order is *at* is
 // what both timelines measure against — nothing stores "done" per step, because
 // a stored flag is one more thing that can disagree with the stage.
-export const STAGES = ["placed", "preparing", "pickedUp", "onTheWay", "delivered"];
+export const STAGES = ["placed", "confirmed", "preparing", "ready", "out_for_delivery", "delivered"];
 
-// `at` is stamped by the kitchen and the dispatcher as each stage is reached, so
-// a stage still ahead of the order simply has none.
-//
-// Two labels per stage: the map-led screen prints the short one beside a time
-// ("Picked up · 08:35 pm"), the compact screen has no times and prints the
-// worded one instead ("Picked up by delivery partner").
 export const TIMELINE = [
-  { id: "placed", label: "Order placed", statusLabel: "Order confirmed", at: "08:15 pm" },
+  { id: "placed", label: "Order placed", statusLabel: "Order placed", at: "08:15 pm" },
+  { id: "confirmed", label: "Confirmed", statusLabel: "Order confirmed", at: "08:20 pm" },
   { id: "preparing", label: "Preparing", statusLabel: "Food is being prepared", at: "08:22 pm" },
-  { id: "pickedUp", label: "Picked up", statusLabel: "Picked up by delivery partner", at: "08:35 pm" },
-  { id: "onTheWay", label: "On the way", statusLabel: "On the way to you", note: "Tracking live" },
+  { id: "ready", label: "Ready", statusLabel: "Food is ready", at: "08:35 pm" },
+  { id: "out_for_delivery", label: "Out for delivery", statusLabel: "On the way to you", note: "Tracking live" },
   { id: "delivered", label: "Delivered", statusLabel: "Delivered" },
 ];
 

@@ -2,10 +2,10 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 
-const ACTIVE_COLOR = "#FF5E00";
-const INACTIVE_COLOR = "#D6D6D6";
+const ACTIVE_COLOR = "#B91C1C"; // Dark Red
+const INACTIVE_COLOR = "#E2E8F0"; // Light Slate
 const INACTIVE_WIDTH = 8;
-const ACTIVE_WIDTH = 24;
+const ACTIVE_WIDTH = 20;
 
 function Dot({ active }) {
   const progress = useSharedValue(active ? 1 : 0);
@@ -19,7 +19,7 @@ function Dot({ active }) {
     backgroundColor: interpolateColor(progress.value, [0, 1], [INACTIVE_COLOR, ACTIVE_COLOR]),
   }));
 
-  return <Animated.View style={[{ height: 8, borderRadius: 999 }, style]} />;
+  return <Animated.View style={[{ height: 6, borderRadius: 999 }, style]} />;
 }
 
 // Screen number indicator for the onboarding flow's bottom bar. Each step

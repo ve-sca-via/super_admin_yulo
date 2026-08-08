@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Image, ScrollView, View } from "react-native";
+import { Image, ScrollView, View, ActivityIndicator } from "react-native";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
 import { useFeed } from "@/context/FeedContext";
+import { useHomeFeed } from "@/hooks/useHomeFeed";
 import Screen from "@/components/ui/Screen";
 import DiscardCartDialog from "@/components/cart/DiscardCartDialog";
 import CategorySwitcher from "@/components/home/CategorySwitcher";
@@ -16,7 +17,6 @@ import SectionHeading from "@/components/home/SectionHeading";
 import StickyCartBar from "@/components/home/StickyCartBar";
 import VegModeBanner from "@/components/home/VegModeBanner";
 import VegModePopover, { VEG_SCOPES } from "@/components/home/VegModePopover";
-import { RESTAURANTS, withVegCuisines } from "@/data/restaurants";
 
 const goldBackdrop = require("@/assets/home/promo-gold-backdrop.png");
 const firstOrderBanner = require("@/assets/home/first-order-offer-banner.png");
@@ -32,53 +32,6 @@ const categoryPizza = require("@/assets/home/category-pizza.png");
 // bar and the promo banner — 381px tall in the 390-wide Figma frame.
 const BACKDROP_HEIGHT = 381;
 const BANNER_HEIGHT = 167;
-
-// Placeholder feed content lifted straight from the Figma frame. Swap for
-// `src/api/client` queries once the discovery endpoints land — the `veg` flags
-// stand in for the dietary marker those endpoints will carry.
-const DISH_CATEGORIES = [
-  { id: "biryani", label: "Biryani", image: categoryBiryani, veg: true },
-  { id: "butter-chicken", label: "Butter chicken", image: categoryButterChicken, veg: false },
-  { id: "veg-thali", label: "Veg Thali", image: categoryVegThali, veg: true },
-  { id: "pizzas", label: "Pizzas", image: categoryPizza, veg: true },
-  { id: "pizzas-2", label: "Pizzas", image: categoryPizza, veg: true },
-];
-
-const RECOMMENDED_FOR_YOU = [
-  {
-    id: "rfy-1",
-    name: "AL Adeeb Biryan",
-    image: dishBiryani,
-    rating: "4.9",
-    deliveryTime: "Delivery in 25-30 min",
-    offer: "Chicken Biryani @ 299",
-    photoCount: 3,
-    veg: true,
-  },
-  {
-    id: "rfy-2",
-    name: "AL Adeeb Biryan",
-    image: dishBiryani,
-    rating: "4.9",
-    deliveryTime: "Delivery in 25-30 min",
-    photoCount: 3,
-    veg: true,
-  },
-  {
-    id: "rfy-3",
-    name: "AL Adeeb Biryan",
-    image: dishBiryani,
-    rating: "4.9",
-    deliveryTime: "Delivery in 25-30 min",
-    photoCount: 2,
-    veg: true,
-  },
-];
-
-const RECOMMENDED_RESTAURANTS = RECOMMENDED_FOR_YOU.map((item, index) => ({
-  ...item,
-  id: `rr-${index + 1}`,
-}));
 
 function RestaurantRow({ data, ratingTone, onSelect }) {
   return (
@@ -116,7 +69,7 @@ export default function Home({ navigation }) {
   const [vegAnchor, setVegAnchor] = useState(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
 
-  const openMenu = (restaurantName) => navigation?.navigate("Menu", { restaurantName });
+  const openMenu = (restaurant) => navigation?.navigate("Menu", { restaurantId: restaurant.id, restaurantName: restaurant.name });
 
   // A cart from another storefront has to be discarded before the customer can
   // open a second one — everything else goes straight to the menu.
@@ -125,7 +78,7 @@ export default function Home({ navigation }) {
       setPendingRestaurant(restaurant);
       return;
     }
-    openMenu(restaurant.name);
+    openMenu(restaurant);
   };
 
   // Discarding is only ever reached from the prompt, so it resumes the tap that
@@ -134,7 +87,7 @@ export default function Home({ navigation }) {
     const next = pendingRestaurant;
     clearCart();
     setPendingRestaurant(null);
-    if (next) openMenu(next.name);
+    if (next) openMenu(next);
   };
 
   const openVegPopover = (anchor) => {
@@ -147,32 +100,53 @@ export default function Home({ navigation }) {
     applyVegScope(scope);
   };
 
-  const dishCategories = useMemo(
-    () => (vegOnly ? DISH_CATEGORIES.filter((item) => item.veg) : DISH_CATEGORIES),
-    [vegOnly],
-  );
+  const { data: feedData, isLoading } = useHomeFeed();
 
-  const recommendedForYou = useMemo(
-    () => (vegOnly ? RECOMMENDED_FOR_YOU.filter((item) => item.veg) : RECOMMENDED_FOR_YOU),
-    [vegOnly],
-  );
+  const dishCategories = useMemo(() => {
+    if (!feedData?.quickFilterChips) return [];
+    return feedData.quickFilterChips.map((chip, idx) => ({
+      id: `chip-${idx}`,
+      label: chip.label,
+      // fallback to placeholder image if backend provides no iconUrl
+      image: chip.iconUrl ? { uri: chip.iconUrl } : categoryBiryani,
+      veg: vegOnly // if we're in vegOnly mode, it's implicitly veg
+    }));
+  }, [feedData, vegOnly]);
 
-  const recommendedRestaurants = useMemo(
-    () => (vegOnly ? RECOMMENDED_RESTAURANTS.filter((item) => item.veg) : RECOMMENDED_RESTAURANTS),
-    [vegOnly],
-  );
+  const recommendedForYou = useMemo(() => {
+    if (!feedData?.recommendedItems) return [];
+    return feedData.recommendedItems.map((item) => ({
+      id: item._id,
+      name: item.name,
+      image: dishBiryani, // Placeholder since items don't typically have thumbnails in this API yet
+      offer: `₹${item.effectivePrice}`,
+      veg: item.foodType !== "non_veg",
+      // Needed by small card format:
+      rating: "New",
+      deliveryTime: "30 min",
+    }));
+  }, [feedData]);
 
-  // "All restaurants" keeps every storefront and only narrows the dishes shown
-  // inside it, which is why frame 08 still lists Biggy's; "Pure veg restaurants
-  // only" is the scope that drops non-veg storefronts from the list.
-  const nearbyRestaurants = useMemo(
-    () =>
-      (vegOnly && vegScope === VEG_SCOPES.PURE_VEG
-        ? RESTAURANTS.filter((item) => item.pureVeg)
-        : RESTAURANTS
-      ).map((item) => withVegCuisines(item, vegOnly)),
-    [vegOnly, vegScope],
-  );
+  const recommendedRestaurants = useMemo(() => {
+    if (!feedData?.recommendedRestaurants) return [];
+    return feedData.recommendedRestaurants.map((res) => ({
+      id: res._id,
+      name: res.name,
+      image: cartRestaurant,
+      rating: res.avgRating?.toString() || "New",
+      deliveryTime: "30 min",
+      veg: res.isPureVeg,
+    }));
+  }, [feedData]);
+
+  const nearbyRestaurants = useMemo(() => {
+    if (!feedData?.nearbyRestaurants) return [];
+    return feedData.nearbyRestaurants.map((res) => ({
+      ...res,
+      id: res._id,
+      image: cartRestaurant,
+    }));
+  }, [feedData]);
 
   const ratingTone = vegOnly ? "veg" : "default";
 
@@ -217,43 +191,60 @@ export default function Home({ navigation }) {
           </View>
         ) : null}
 
-        <SectionHeading className="ml-5 mt-9">What’s on your mind?</SectionHeading>
-        <View className="mt-1.5">
-          {/* A category tile is a canned search — hand the label to the results
-              screen rather than filtering the feed in place. */}
-          <DishCategoryRow
-            items={dishCategories}
-            onSelect={(item) => navigation?.navigate("SearchResults", { query: item.label })}
-          />
-        </View>
+        {isLoading ? (
+          <View className="mt-20 items-center justify-center">
+            <ActivityIndicator size="large" color="#FF5E00" />
+          </View>
+        ) : (
+          <>
+            <SectionHeading className="ml-5 mt-9">What’s on your mind?</SectionHeading>
+            <View className="mt-1.5">
+              <DishCategoryRow
+                items={dishCategories}
+                onSelect={(item) => navigation?.navigate("SearchResults", { query: item.label })}
+              />
+            </View>
 
-        <SectionHeading className="ml-5 mt-8">Recommended for you</SectionHeading>
-        <View className="mt-2">
-          <RestaurantRow data={recommendedForYou} ratingTone={ratingTone} onSelect={openRestaurant} />
-        </View>
+            {recommendedForYou.length > 0 && (
+              <>
+                <SectionHeading className="ml-5 mt-8">Recommended for you</SectionHeading>
+                <View className="mt-2">
+                  <RestaurantRow data={recommendedForYou} ratingTone={ratingTone} onSelect={openRestaurant} />
+                </View>
+              </>
+            )}
 
-        <SectionHeading className="ml-5 mt-6">Recommended restaurants</SectionHeading>
-        <View className="mt-2">
-          <RestaurantRow
-            data={recommendedRestaurants}
-            ratingTone={ratingTone}
-            onSelect={openRestaurant}
-          />
-        </View>
+            {recommendedRestaurants.length > 0 && (
+              <>
+                <SectionHeading className="ml-5 mt-6">Recommended restaurants</SectionHeading>
+                <View className="mt-2">
+                  <RestaurantRow
+                    data={recommendedRestaurants}
+                    ratingTone={ratingTone}
+                    onSelect={openRestaurant}
+                  />
+                </View>
+              </>
+            )}
 
-        <SectionHeading className="ml-[31px] mt-6">Restaurants near you</SectionHeading>
-        <View className="mt-1.5 gap-4 px-6">
-          {nearbyRestaurants.map((restaurant) => (
-            <RestaurantCardLarge
-              key={restaurant.id}
-              restaurant={restaurant}
-              favourite={!!favourites[restaurant.id]}
-              ratingTone={ratingTone}
-              onToggleFavourite={() => toggleFavourite(restaurant.id)}
-              onPress={() => openRestaurant(restaurant)}
-            />
-          ))}
-        </View>
+            <SectionHeading className="ml-[31px] mt-6">Restaurants near you</SectionHeading>
+            <View className="mt-1.5 gap-4 px-6">
+              {nearbyRestaurants.map((restaurant) => {
+                const isFave = favourites[restaurant.id] ?? restaurant.isFavorited ?? false;
+                return (
+                  <RestaurantCardLarge
+                    key={restaurant.id}
+                    restaurant={restaurant}
+                    favourite={isFave}
+                    ratingTone={ratingTone}
+                    onToggleFavourite={() => toggleFavourite(restaurant.id, isFave)}
+                    onPress={() => openRestaurant(restaurant)}
+                  />
+                );
+              })}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <VegModePopover
@@ -280,7 +271,7 @@ export default function Home({ navigation }) {
             restaurantImage={cartRestaurant}
             itemCount={cart.itemCount}
             vegOnly={vegOnly}
-            onViewMenu={() => openMenu(cart.restaurantName)}
+            onViewMenu={() => openMenu({ id: cart.restaurantId, name: cart.restaurantName })}
             onViewCart={() => navigation?.navigate("Cart")}
             onDismiss={clearCart}
           />

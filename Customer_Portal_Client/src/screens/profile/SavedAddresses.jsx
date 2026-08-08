@@ -10,6 +10,7 @@ import AddressCard from "@/components/checkout/AddressCard";
 import AddressFormSheet from "@/components/checkout/AddressFormSheet";
 import PageHeader from "@/components/customer/PageHeader";
 import { accentFor } from "@/lib/accent";
+import { useDeleteAddress } from "@/hooks/useUser";
 
 const SCROLL_PADDING = 32;
 
@@ -25,6 +26,7 @@ export default function SavedAddresses() {
   const { addresses, selectedAddress, selectAddress, addAddress } = useCustomerAuth();
   const { vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
+  const deleteAddress = useDeleteAddress();
 
   const [adding, setAdding] = useState(false);
 
@@ -63,6 +65,7 @@ export default function SavedAddresses() {
               accent={accent}
               selected={address.id === selectedAddress?.id}
               onPress={() => selectAddress(address.id)}
+              onDelete={() => deleteAddress.mutate(address.id)}
             />
           ))}
         </View>

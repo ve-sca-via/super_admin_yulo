@@ -10,6 +10,8 @@ import PartnerCard from "@/components/orders/PartnerCard";
 import TrackingMap from "@/components/orders/TrackingMap";
 import { TRACKED_ORDER } from "@/data/orders";
 import { accentFor } from "@/lib/accent";
+import { useOrderTracking, useOrderSocket } from "@/hooks/useOrders";
+import { ActivityIndicator } from "react-native";
 
 // How far the ETA card is pulled up over the map. The map is scenery; the card
 // is what's being read, and the overlap is what stops the screen opening on a
@@ -35,13 +37,36 @@ export default function OrderTracking({ navigation, route }) {
   const { vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
 
-  // The storefront the order was placed with, if tracking was reached straight
-  // from a confirmation. The seeded order names its own kitchen otherwise.
-  const restaurantName = route.params?.restaurantName;
+  const orderId = route.params?.orderId;
+  const { data: liveOrder, isLoading } = useOrderTracking(orderId);
+  useOrderSocket(orderId);
 
-  const order = restaurantName
-    ? { ...TRACKED_ORDER, restaurant: { ...TRACKED_ORDER.restaurant, name: restaurantName } }
-    : TRACKED_ORDER;
+  const order = liveOrder ? {
+    id: orderId,
+    etaMinutes: liveOrder.etaMinutes,
+    stage: liveOrder.status,
+    restaurant: {
+      name: liveOrder.restaurant?.name,
+      rating: liveOrder.restaurant?.rating?.toString(),
+      cuisine: "Multicuisine",
+      vegCuisine: "Multicuisine",
+    },
+    partner: liveOrder.deliveryPartner ? {
+      name: liveOrder.deliveryPartner.name,
+      initials: liveOrder.deliveryPartner.name.substring(0, 2),
+      rating: liveOrder.deliveryPartner.rating?.toString(),
+      deliveries: `${liveOrder.deliveryPartner.totalDeliveries}+ deliveries`,
+    } : null,
+    lines: (liveOrder.orderItems || []).map((item, i) => ({
+      id: item.menuItemId || i,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      icon: "bowl",
+      veg: item.isPureVeg,
+    })),
+    totalPaid: liveOrder.totalPaid
+  } : TRACKED_ORDER;
 
   // No partner-contact endpoint yet: the masked number and the chat thread are
   // both dispatcher-side. Until they exist the call goes through the OS dialler
@@ -71,15 +96,23 @@ export default function OrderTracking({ navigation, route }) {
       >
         <TrackingMap accent={accent} onBack={back} />
 
-        <View className="px-4" style={{ marginTop: -CARD_OVERLAP }}>
-          <EtaCard order={order} vegOnly={vegOnly} />
+        {isLoading ? (
+          <View className="mt-10 items-center justify-center">
+            <ActivityIndicator size="large" color={accent.icon} />
+          </View>
+        ) : (
+          <View className="px-4" style={{ marginTop: -CARD_OVERLAP }}>
+            <EtaCard order={order} vegOnly={vegOnly} />
 
-          <DeliveryTimeline stage={order.stage} className="mt-4" />
+            <DeliveryTimeline stage={order.stage} className="mt-4" />
 
-          <PartnerCard partner={order.partner} accent={accent} onCall={call} onChat={chat} className="mt-4" />
+            {order.partner && (
+              <PartnerCard partner={order.partner} accent={accent} onCall={call} onChat={chat} className="mt-4" />
+            )}
 
-          <OrderSummaryCard order={order} accent={accent} vegOnly={vegOnly} className="mt-4" />
-        </View>
+            <OrderSummaryCard order={order} accent={accent} vegOnly={vegOnly} className="mt-4" />
+          </View>
+        )}
       </ScrollView>
     </Screen>
   );

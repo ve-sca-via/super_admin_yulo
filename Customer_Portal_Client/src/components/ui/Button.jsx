@@ -8,7 +8,7 @@ import Text from "./Text";
 const containerVariants = cva("items-center justify-center rounded-full flex-row gap-2", {
   variants: {
     variant: {
-      default: "bg-primary shadow-md shadow-primary/40",
+      default: "bg-primary", // Removed shadow utilities to prevent NativeWind crash
       secondary: "bg-white border-[1.5px] border-primary-hover",
       ghost: "bg-transparent",
       destructive: "bg-destructive",
@@ -62,6 +62,16 @@ export default function Button({
         disabled && "opacity-100",
         className,
       )}
+      style={[
+        effectiveVariant === "default" && {
+          shadowColor: "#FF5E00",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.4,
+          shadowRadius: 6,
+          elevation: 5
+        },
+        props.style
+      ]}
       {...props}
     >
       {isValidElement(children) ? (

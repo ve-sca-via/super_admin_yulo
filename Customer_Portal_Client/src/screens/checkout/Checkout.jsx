@@ -27,10 +27,12 @@ import VegFleetSheet from "@/components/checkout/VegFleetSheet";
 import MenuItemCard from "@/components/menu/MenuItemCard";
 import ItemCustomiseSheet from "@/components/menu/ItemCustomiseSheet";
 import { shortAddress } from "@/data/addresses";
-import { TIP_OPTIONS, billFor, cartLineFor, suggestionTabsFor } from "@/data/cart";
-import { findItem, formatPrice, menuFor } from "@/data/menu";
+import { TIP_OPTIONS, cartLineFor } from "@/data/cart";
+import { findItem, formatPrice } from "@/data/menu";
 import { accentFor } from "@/lib/accent";
 import { cn } from "@/lib/utils";
+import { useCheckoutSummary } from "@/hooks/useCheckout";
+import { ActivityIndicator } from "react-native";
 
 // Room under the policy note for the pay bar, which is taller than the other
 // screens' because it carries the payment method above the button.
@@ -104,14 +106,24 @@ export default function Checkout({ navigation }) {
   const [customising, setCustomising] = useState(null);
   const [suggestionTab, setSuggestionTab] = useState(null);
 
-  const menu = useMemo(() => menuFor(cart?.restaurantName), [cart?.restaurantName]);
+  const { data: summary, isLoading: isLoadingSummary } = useCheckoutSummary();
 
-  const tabs = useMemo(
-    () => suggestionTabsFor(menu, (cart?.lines ?? []).map((line) => line.itemId)),
-    [menu, cart],
-  );
+  const tabs = useMemo(() => {
+    if (!summary?.upsellItems?.length) return [];
+    return [{
+      id: "recommended",
+      label: "Recommended",
+      items: summary.upsellItems.map((item) => ({
+        id: item._id,
+        name: item.name,
+        price: item.effectivePrice,
+        veg: item.foodType !== "non_veg",
+        image: null,
+      })),
+    }];
+  }, [summary]);
 
-  const activeTab = tabs.find((tab) => tab.id === suggestionTab) ?? tabs[0];
+  const activeTab = tabs[0];
 
   // Counting the last dish down to zero empties the cart out from under this
   // screen — there's no order left to check out, so it says so rather than
@@ -140,7 +152,26 @@ export default function Checkout({ navigation }) {
     );
   }
 
-  const bill = billFor(cart, { tip });
+  if (isLoadingSummary) {
+    return (
+      <Screen edges={["top"]}>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color={accent.icon} />
+        </View>
+      </Screen>
+    );
+  }
+
+  const bill = summary?.bill ? {
+    itemTotal: summary.bill.itemTotal,
+    discounts: summary.bill.discountAmount ? [{ id: "item", label: "Item discount", amount: summary.bill.discountAmount }] : [],
+    delivery: summary.bill.deliveryFee,
+    platform: summary.bill.platformFee,
+    taxes: summary.bill.tax,
+    tip,
+    toPay: summary.bill.grandTotal + tip,
+  } : null;
+
   const method = PAYMENT_METHODS.find((entry) => entry.id === payment);
 
   const openMenu = () => navigation.navigate("Menu", { restaurantName: cart.restaurantName });
@@ -165,8 +196,10 @@ export default function Checkout({ navigation }) {
   // Editing a row is the same sheet answered again: the old line goes and what
   // comes back takes its place, rather than the dish landing in the cart twice.
   const editLine = (line) => {
-    const item = findItem(menu, line.itemId);
-    if (item) setCustomising({ item, lineKey: line.key });
+    // If the original item object is in the line (via cartState mapper), use it
+    if (line.item) {
+        setCustomising({ item: { ...line.item, veg: line.veg, price: line.price }, lineKey: line.key });
+    }
   };
 
   const addCustomised = ({ item, selection, addOns, quantity }) => {
@@ -185,7 +218,7 @@ export default function Checkout({ navigation }) {
   // the cart stays put until it is. The two answers this screen collected that
   // the bill and the dispatch both need travel with it, so neither has to be
   // asked again.
-  const placeOrder = () => navigation.navigate("Payment", { tip, vegFleet });
+  const placeOrder = () => navigation.navigate("Payment", { tip, vegFleet, deliveryNote, cookingNote, cutlery });
 
   return (
     <Screen edges={["top"]}>
@@ -291,7 +324,7 @@ export default function Checkout({ navigation }) {
         {/* Only a pure-veg storefront can promise a veg-only order end to end, so
             the option is offered where it means something rather than on every
             checkout as a request the kitchen would contradict. */}
-        {menu.pureVeg ? (
+        {summary?.vegFleetEligible ? (
           <Card className="mx-5 mt-4 p-4">
             <Pressable
               onPress={() => setVegFleet((current) => !current)}
@@ -509,10 +542,10 @@ export default function Checkout({ navigation }) {
           size="lg"
           style={{ backgroundColor: accent.icon }}
           className="mt-3 w-full shadow-lg shadow-black/20"
-          accessibilityLabel={`Pay ${formatPrice(bill.toPay)}`}
+          accessibilityLabel={`Pay ${formatPrice(bill?.toPay || 0)}`}
         >
           <Text className="font-jakarta-bold text-[17px] leading-[24px] text-white">
-            Pay {formatPrice(bill.toPay)}
+            Pay {formatPrice(bill?.toPay || 0)}
           </Text>
         </Button>
       </View>

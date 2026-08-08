@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ScrollView, View } from "react-native";
 import { Check } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,8 +10,10 @@ import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import PageHeader from "@/components/customer/PageHeader";
 import RatingCard from "@/components/orders/RatingCard";
-import { deliveredOrder, formatTotal } from "@/data/orders";
+import { formatTotal } from "@/data/orders";
 import { accentFor } from "@/lib/accent";
+import { useOrderDetails, useReorder, useSubmitReview } from "@/hooks/useOrders";
+import { ActivityIndicator, Alert } from "react-native";
 
 // Room under the rating card for the reorder bar.
 const SCROLL_PADDING = 140;
@@ -31,13 +33,51 @@ export default function OrderDetails({ navigation, route }) {
   const { vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
   const insets = useSafeAreaInsets();
+  
+  const orderId = route.params?.orderId;
+  const { data: orderResponse, isLoading } = useOrderDetails(orderId);
+  const reorder = useReorder();
+  const submitReview = useSubmitReview();
 
-  const order = deliveredOrder(route.params?.orderId);
+  // If order details aren't loaded yet, default to false/null
+  const order = orderResponse || {};
+  const hasReviewed = !!order.rating;
 
-  const [rating, setRating] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
+  const [rating, setRating] = useState(order.rating?.value || 0);
+  const [submitted, setSubmitted] = useState(hasReviewed);
 
-  const reorder = () => navigation.navigate("Menu", { restaurantName: order.restaurantName });
+  // Sync state if it arrives late
+  useEffect(() => {
+    if (order.rating?.value) {
+      setRating(order.rating.value);
+      setSubmitted(true);
+    }
+  }, [order.rating]);
+
+  const handleSubmitReview = () => {
+    submitReview.mutate({ orderId, rating }, {
+      onSuccess: () => setSubmitted(true),
+      onError: (err) => Alert.alert("Rating failed", err.message)
+    });
+  };
+
+  const handleReorder = () => {
+    reorder.mutate(orderId, {
+      onSuccess: (data) => {
+        if (data?.removedItems?.length) {
+          Alert.alert("Some items removed", `Items removed: ${data.removedItems.map(i => i.name).join(", ")}`);
+        }
+        navigation.navigate("Menu", { restaurantId: order.restaurantId, restaurantName: order.restaurantName });
+      },
+      onError: (err) => {
+        if (err.code === "CART_RESTAURANT_CONFLICT") {
+          navigation.navigate("Menu", { restaurantId: order.restaurantId, restaurantName: order.restaurantName });
+        } else {
+          Alert.alert("Reorder failed", err.message);
+        }
+      }
+    });
+  };
 
   return (
     <Screen edges={["top"]}>
@@ -47,53 +87,60 @@ export default function OrderDetails({ navigation, route }) {
       >
         <PageHeader title="Order details" />
 
-        <View className="mt-6 gap-4 px-5">
-          <View className="w-full rounded-[20px] bg-success-tint px-5 py-4">
-            <Check size={26} color="#2E7D32" strokeWidth={2.6} />
-
-            <Text className="mt-2 font-jakarta-bold text-[22px] leading-[30px] text-[#2E7D32]">
-              Delivered
-            </Text>
+        {isLoading ? (
+          <View className="mt-10 items-center justify-center">
+            <ActivityIndicator size="large" color={accent.icon} />
           </View>
+        ) : (
+          <View className="mt-6 gap-4 px-5">
+            <View className="w-full rounded-[20px] bg-success-tint px-5 py-4">
+              <Check size={26} color="#2E7D32" strokeWidth={2.6} />
 
-          <RatingCard
-            rating={rating}
-            submitted={submitted}
-            accent={accent}
-            // The promise made at checkout, reported once it can be reported as
-            // fact — and only for the orders it was actually kept for.
-            note={
-              order.vegFleet
-                ? "Your delivery partner used the veg-only fleet bag for this order"
-                : null
-            }
-            onRate={setRating}
-            onSubmit={() => setSubmitted(true)}
-            className="p-5"
-          />
-        </View>
+              <Text className="mt-2 font-jakarta-bold text-[22px] leading-[30px] text-[#2E7D32]">
+                Delivered
+              </Text>
+            </View>
+
+            <RatingCard
+              rating={rating}
+              submitted={submitted}
+              accent={accent}
+              note={
+                order.vegFleetOptIn
+                  ? "Your delivery partner used the veg-only fleet bag for this order"
+                  : null
+              }
+              onRate={setRating}
+              onSubmit={handleSubmitReview}
+              className="p-5"
+            />
+          </View>
+        )}
       </ScrollView>
 
-      <View style={{ paddingBottom: insets.bottom + 12 }} className="absolute inset-x-0 bottom-0 px-5 pt-3">
-        <Card className="w-full p-5">
-          <Text className="font-jakarta-semibold text-[18px] leading-[25px] text-foreground">
-            {order.itemCount} item{order.itemCount === 1 ? "" : "s"} · {formatTotal(order.total)}
-          </Text>
-
-          <Button
-            onPress={reorder}
-            variant="secondary"
-            size="lg"
-            style={{ borderColor: accent.icon }}
-            className="mt-3 w-full"
-            accessibilityLabel={`Reorder from ${order.restaurantName}`}
-          >
-            <Text style={{ color: accent.icon }} className="font-jakarta-bold text-[17px] leading-[24px]">
-              Reorder
+      {!isLoading && (
+        <View style={{ paddingBottom: insets.bottom + 12 }} className="absolute inset-x-0 bottom-0 px-5 pt-3">
+          <Card className="w-full p-5">
+            <Text className="font-jakarta-semibold text-[18px] leading-[25px] text-foreground">
+              {order.items?.length || 0} item{(order.items?.length || 0) === 1 ? "" : "s"} · {formatTotal(order.grandTotal || 0)}
             </Text>
-          </Button>
-        </Card>
-      </View>
+
+            <Button
+              onPress={handleReorder}
+              variant="secondary"
+              size="lg"
+              style={{ borderColor: accent.icon }}
+              className="mt-3 w-full"
+              accessibilityLabel={`Reorder from ${order.restaurantName}`}
+              disabled={reorder.isPending}
+            >
+              <Text style={{ color: accent.icon }} className="font-jakarta-bold text-[17px] leading-[24px]">
+                {reorder.isPending ? "Reordering..." : "Reorder"}
+              </Text>
+            </Button>
+          </Card>
+        </View>
+      )}
     </Screen>
   );
 }

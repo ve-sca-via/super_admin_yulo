@@ -1,8 +1,13 @@
-import { Linking, ScrollView, View } from "react-native";
+import { Linking, ScrollView, View, ActivityIndicator } from "react-native";
+import { MessageCircle } from "lucide-react-native";
 
 import Screen from "@/components/ui/Screen";
 import PageHeader from "@/components/customer/PageHeader";
 import SettingsRow from "@/components/customer/SettingsRow";
+import Text from "@/components/ui/Text";
+import { useSupportTickets } from "@/hooks/useSupport";
+import { useFeed } from "@/context/FeedContext";
+import { accentFor } from "@/lib/accent";
 
 const SCROLL_PADDING = 32;
 
@@ -27,8 +32,15 @@ const TOPICS = [
 
 export default function HelpSupport({ navigation }) {
   const openThread = (topic) => navigation.navigate("Support", { topic });
+  const openTicket = (ticketId) => navigation.navigate("Support", { ticketId });
 
   const call = () => Linking.openURL(SUPPORT_PHONE).catch(() => {});
+  
+  const { data: ticketsPage, isLoading } = useSupportTickets();
+  const tickets = ticketsPage?.tickets || ticketsPage?.data || [];
+  
+  const { vegOnly } = useFeed();
+  const accent = accentFor(vegOnly);
 
   return (
     <Screen edges={["top", "bottom"]}>
@@ -49,6 +61,31 @@ export default function HelpSupport({ navigation }) {
           />
 
           <SettingsRow label="Talk to support" onPress={call} />
+        </View>
+
+        <View className="mt-8 px-5">
+          <Text className="font-jakarta-bold text-[20px] text-foreground mb-4">
+            Previous tickets
+          </Text>
+
+          {isLoading ? (
+            <ActivityIndicator size="small" color={accent.icon} className="mt-4" />
+          ) : tickets.length > 0 ? (
+            <View className="gap-3">
+              {tickets.map((ticket) => (
+                <SettingsRow
+                  key={ticket._id || ticket.id}
+                  label={`Ticket #${(ticket._id || ticket.id).slice(-6)}`}
+                  icon={MessageCircle}
+                  onPress={() => openTicket(ticket._id || ticket.id)}
+                />
+              ))}
+            </View>
+          ) : (
+            <Text className="font-jakarta text-[15px] text-muted-foreground mt-2">
+              You haven't opened any support tickets yet.
+            </Text>
+          )}
         </View>
       </ScrollView>
     </Screen>

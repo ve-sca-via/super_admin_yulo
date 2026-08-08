@@ -13,6 +13,9 @@ const TABS = [
 ];
 
 export default function HomeBottomNav({ value = "delivery", onChange, onScan }) {
+  const DeliveryIcon = TABS[0].Icon;
+  const HistoryIcon = TABS[1].Icon;
+
   return (
     <View className="h-[60px] w-full flex-row items-center justify-between rounded-full bg-card p-1.5 shadow-md shadow-black/10">
       {/* Delivery Tab */}
@@ -25,7 +28,7 @@ export default function HomeBottomNav({ value = "delivery", onChange, onScan }) 
           TABS[0].key === value && "bg-primary-tint",
         )}
       >
-        <TABS[0].Icon size={22} color={TABS[0].key === value ? "#FF5E00" : "#666666"} />
+        <DeliveryIcon size={22} color={TABS[0].key === value ? "#FF5E00" : "#666666"} />
         <Text
           className={cn(
             "font-jakarta-semibold text-[14px] leading-[18px]",
@@ -41,7 +44,14 @@ export default function HomeBottomNav({ value = "delivery", onChange, onScan }) 
         onPress={onScan}
         accessibilityRole="button"
         accessibilityLabel="Scan QR Code"
-        className="mx-2 flex h-[50px] w-[50px] items-center justify-center rounded-full bg-primary shadow-sm shadow-primary/40 active:opacity-80"
+        className="mx-2 flex h-[50px] w-[50px] items-center justify-center rounded-full bg-primary"
+        style={{
+          shadowColor: "#FF5E00",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.4,
+          shadowRadius: 3,
+          elevation: 4
+        }}
       >
         <ScanLine size={24} color="#FFFFFF" />
       </Pressable>
@@ -56,7 +66,7 @@ export default function HomeBottomNav({ value = "delivery", onChange, onScan }) 
           TABS[1].key === value && "bg-primary-tint",
         )}
       >
-        <TABS[1].Icon size={22} color={TABS[1].key === value ? "#FF5E00" : "#666666"} />
+        <HistoryIcon size={22} color={TABS[1].key === value ? "#FF5E00" : "#666666"} />
         <Text
           className={cn(
             "font-jakarta-semibold text-[14px] leading-[18px]",

@@ -7,6 +7,8 @@ import Text from "@/components/ui/Text";
 import VegModeBanner from "@/components/home/VegModeBanner";
 import { TIMELINE, TRACKED_ORDER, stageIndex } from "@/data/orders";
 import { accentFor } from "@/lib/accent";
+import { useOrderTracking, useOrderSocket } from "@/hooks/useOrders";
+import { ActivityIndicator } from "react-native";
 
 const ILLUSTRATION_HEIGHT = 200;
 const SCROLL_PADDING = 32;
@@ -26,7 +28,20 @@ export default function FleetOrderTracking({ navigation, route }) {
   const { vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
 
-  const order = TRACKED_ORDER;
+  const orderId = route.params?.orderId;
+  const { data: liveOrder, isLoading } = useOrderTracking(orderId);
+  useOrderSocket(orderId);
+
+  const order = liveOrder ? {
+    id: orderId,
+    etaMinutes: liveOrder.etaMinutes,
+    stage: liveOrder.status,
+    partner: liveOrder.deliveryPartner ? {
+      name: liveOrder.deliveryPartner.name,
+      initials: liveOrder.deliveryPartner.name.substring(0, 2),
+    } : null,
+  } : TRACKED_ORDER;
+  
   const current = stageIndex(order.stage);
 
   // The screen is reached from the veg-fleet search, so the bag is the default —
@@ -76,93 +91,101 @@ export default function FleetOrderTracking({ navigation, route }) {
           <Bike size={56} color={accent.icon} strokeWidth={1.8} />
         </View>
 
-        <View className="px-5 pt-6">
-          <View className="flex-row items-start justify-between gap-3">
-            <Text className="flex-1 font-jakarta-extrabold text-[26px] leading-[34px] text-foreground">
-              Arriving in {order.etaMinutes} mins
-            </Text>
-
-            <View className="rounded-full bg-[#E4F1E5] px-3.5 py-1.5">
-              <Text className="font-jakarta-semibold text-[15px] leading-[21px] text-[#2E7D32]">
-                On the way
-              </Text>
-            </View>
+        {isLoading ? (
+          <View className="mt-10 items-center justify-center">
+            <ActivityIndicator size="large" color={accent.icon} />
           </View>
+        ) : (
+          <View className="px-5 pt-6">
+            <View className="flex-row items-start justify-between gap-3">
+              <Text className="flex-1 font-jakarta-extrabold text-[26px] leading-[34px] text-foreground">
+                Arriving in {order.etaMinutes} mins
+              </Text>
 
-          <View className="mt-5 gap-4">
-            {steps.map((step, index) => {
-              // The last row is the stage in progress, so its dot stays grey —
-              // it's what the order is doing, not what it has finished.
-              const done = index < steps.length - 1;
+              <View className="rounded-full bg-[#E4F1E5] px-3.5 py-1.5">
+                <Text className="font-jakarta-semibold text-[15px] leading-[21px] text-[#2E7D32]">
+                  {TIMELINE[current]?.label || "On the way"}
+                </Text>
+              </View>
+            </View>
 
-              return (
-                <View key={step.id} className="flex-row items-center gap-3.5">
-                  <View
-                    style={{ backgroundColor: done ? "#2FA84F" : "#D4D4D4" }}
-                    className="size-3 rounded-full"
-                  />
+            <View className="mt-5 gap-4">
+              {steps.map((step, index) => {
+                // The last row is the stage in progress, so its dot stays grey —
+                // it's what the order is doing, not what it has finished.
+                const done = index < steps.length - 1;
 
+                return (
+                  <View key={step.id} className="flex-row items-center gap-3.5">
+                    <View
+                      style={{ backgroundColor: done ? "#2FA84F" : "#D4D4D4" }}
+                      className="size-3 rounded-full"
+                    />
+
+                    <Text
+                      className={
+                        done
+                          ? "flex-1 font-jakarta-medium text-[19px] leading-[26px] text-foreground"
+                          : "flex-1 font-jakarta-medium text-[19px] leading-[26px] text-muted-foreground"
+                      }
+                    >
+                      {step.statusLabel}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {order.partner ? (
+              <View className="mt-6 flex-row items-center gap-3.5 rounded-3xl bg-muted p-3.5">
+                <View
+                  style={{ backgroundColor: accent.icon }}
+                  className="size-14 items-center justify-center rounded-full"
+                >
+                  <Text className="font-jakarta-bold text-[18px] leading-[24px] text-white">
+                    {order.partner.initials}
+                  </Text>
+                </View>
+
+                <View className="flex-1 gap-1.5">
                   <Text
-                    className={
-                      done
-                        ? "flex-1 font-jakarta-medium text-[19px] leading-[26px] text-foreground"
-                        : "flex-1 font-jakarta-medium text-[19px] leading-[26px] text-muted-foreground"
-                    }
+                    numberOfLines={1}
+                    className="font-jakarta-semibold text-[19px] leading-[26px] text-foreground"
                   >
-                    {step.statusLabel}
+                    {order.partner.name}
                   </Text>
+
+                  {vegFleet ? (
+                    <View className="flex-row items-center gap-1.5 self-start rounded-full bg-[#E4F1E5] px-2.5 py-1">
+                      <Leaf size={13} color="#2E7D32" strokeWidth={2.2} />
+
+                      <Text className="font-jakarta-medium text-[14px] leading-[20px] text-[#2E7D32]">
+                        Veg-only fleet bag
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-              );
-            })}
-          </View>
 
-          <View className="mt-6 flex-row items-center gap-3.5 rounded-3xl bg-muted p-3.5">
-            <View
-              style={{ backgroundColor: accent.icon }}
-              className="size-14 items-center justify-center rounded-full"
-            >
-              <Text className="font-jakarta-bold text-[18px] leading-[24px] text-white">
-                {order.partner.initials}
+                <Pressable
+                  onPress={call}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Call ${order.partner.name}`}
+                  style={{ backgroundColor: accent.tint }}
+                  className="size-12 items-center justify-center rounded-full"
+                >
+                  <Phone size={20} color={accent.icon} strokeWidth={2.2} />
+                </Pressable>
+              </View>
+            ) : null}
+
+            <Pressable onPress={help} hitSlop={8} accessibilityRole="button" className="mt-6 self-start">
+              <Text style={{ color: accent.icon }} className="font-jakarta-bold text-[17px] leading-[24px]">
+                Need help with this order?
               </Text>
-            </View>
-
-            <View className="flex-1 gap-1.5">
-              <Text
-                numberOfLines={1}
-                className="font-jakarta-semibold text-[19px] leading-[26px] text-foreground"
-              >
-                {order.partner.name}
-              </Text>
-
-              {vegFleet ? (
-                <View className="flex-row items-center gap-1.5 self-start rounded-full bg-[#E4F1E5] px-2.5 py-1">
-                  <Leaf size={13} color="#2E7D32" strokeWidth={2.2} />
-
-                  <Text className="font-jakarta-medium text-[14px] leading-[20px] text-[#2E7D32]">
-                    Veg-only fleet bag
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            <Pressable
-              onPress={call}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={`Call ${order.partner.name}`}
-              style={{ backgroundColor: accent.tint }}
-              className="size-12 items-center justify-center rounded-full"
-            >
-              <Phone size={20} color={accent.icon} strokeWidth={2.2} />
             </Pressable>
           </View>
-
-          <Pressable onPress={help} hitSlop={8} accessibilityRole="button" className="mt-6 self-start">
-            <Text style={{ color: accent.icon }} className="font-jakarta-bold text-[17px] leading-[24px]">
-              Need help with this order?
-            </Text>
-          </Pressable>
-        </View>
+        )}
       </ScrollView>
     </Screen>
   );

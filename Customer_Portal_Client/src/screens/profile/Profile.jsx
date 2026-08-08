@@ -94,15 +94,10 @@ export default function Profile({ navigation }) {
 
           <SettingsRow label="Saved addresses" icon={MapPin} onPress={() => go("SavedAddresses")} />
 
-          {/* Veg mode is a browsing switch and lives on the feed; the standing
-              fleet preference behind it is an account setting and hasn't been
-              built, so this row holds its place. */}
           <SettingsRow
             label="Veg-fleet preference"
             icon={Leaf}
-            onPress={() =>
-              go("Placeholder", { title: "Veg-fleet preference", flow: "the account flow" })
-            }
+            onPress={() => go("VegFleetPreference")}
           />
 
           <SettingsRow label="Settings" icon={SettingsIcon} onPress={() => go("Settings")} />
