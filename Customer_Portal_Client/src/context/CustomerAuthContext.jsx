@@ -48,7 +48,14 @@ export function CustomerAuthProvider({ children }) {
         if (rawProfile) setUser(JSON.parse(rawProfile));
         if (seenOnboarding) setHasSeenOnboarding(true);
         if (rawLocation) setDeliveryLocationState(JSON.parse(rawLocation));
-        if (rawAddresses) setAddressBook(JSON.parse(rawAddresses));
+
+        // A stored book that has lost its list — an interrupted write, a shape
+        // from an older build — would leave checkout with no address to select
+        // and nothing to fall back on, so it's rejected rather than adopted.
+        if (rawAddresses) {
+          const stored = JSON.parse(rawAddresses);
+          if (Array.isArray(stored?.addresses) && stored.addresses.length) setAddressBook(stored);
+        }
       })
       // An unreadable cached value must not wedge the splash screen, which
       // waits on `hydrated` — drop it and carry on signed out.

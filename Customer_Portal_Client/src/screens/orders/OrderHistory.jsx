@@ -22,7 +22,7 @@ export default function OrderHistory({ navigation }) {
   const accent = accentFor(vegOnly);
 
   return (
-    <Screen edges={["top"]}>
+    <Screen edges={["top", "bottom"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: SCROLL_PADDING }}

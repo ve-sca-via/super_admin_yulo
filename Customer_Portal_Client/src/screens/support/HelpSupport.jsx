@@ -31,7 +31,7 @@ export default function HelpSupport({ navigation }) {
   const call = () => Linking.openURL(SUPPORT_PHONE).catch(() => {});
 
   return (
-    <Screen edges={["top"]}>
+    <Screen edges={["top", "bottom"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: SCROLL_PADDING }}

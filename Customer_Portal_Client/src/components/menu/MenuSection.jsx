@@ -1,5 +1,6 @@
 import { View } from "react-native";
 
+import { sectionItems } from "@/data/menu";
 import MenuItemCard from "./MenuItemCard";
 import MenuSectionHeader from "./MenuSectionHeader";
 
@@ -13,13 +14,17 @@ function toRows(items) {
 }
 
 export default function MenuSection({ section, accent, onToggle, onAddItem }) {
-  const rows = toRows(section.items);
+  // A section holds its dishes directly or splits them across named groups —
+  // the grid draws both as one flat grid, so it asks for the dishes rather than
+  // reaching for `section.items`, which a grouped section doesn't have.
+  const items = sectionItems(section);
+  const rows = toRows(items);
 
   return (
     <View>
       <MenuSectionHeader
         title={section.title}
-        itemCount={section.items.length}
+        itemCount={items.length}
         expanded
         onPress={onToggle}
       />

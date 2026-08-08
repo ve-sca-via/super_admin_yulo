@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { Mic, Search, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -61,7 +70,13 @@ export default function MenuIndexSheet({
       statusBarTranslucent
       onRequestClose={onDismiss}
     >
-      <View className="flex-1">
+      {/* Searching the menu from here puts the keyboard over the bottom of the
+          window, which is where this panel — and its search field — sit.
+          Android resizes the window itself, so only iOS needs the padding. */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        className="flex-1"
+      >
         <Pressable
           className="absolute inset-0 bg-black/40"
           onPress={onDismiss}
@@ -78,7 +93,13 @@ export default function MenuIndexSheet({
           </View>
         ) : null}
 
-        <View className="mt-auto rounded-t-3xl bg-background px-6 pb-10 pt-4">
+        {/* The sheet is flush to the bottom edge, so it carries the gesture-bar
+            inset itself rather than relying on a fixed pad that a taller
+            handset would swallow. */}
+        <View
+          style={{ paddingBottom: insets.bottom + 24 }}
+          className="mt-auto rounded-t-3xl bg-background px-6 pt-4"
+        >
           <View className="h-1 w-10 self-center rounded-full bg-border-strong" />
 
           <View className="mt-5 h-14 flex-row items-center rounded-full bg-card px-5 shadow-md shadow-black/10">
@@ -181,7 +202,7 @@ export default function MenuIndexSheet({
             </Text>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

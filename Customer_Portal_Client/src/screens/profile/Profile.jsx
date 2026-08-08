@@ -37,7 +37,7 @@ function formatPhone(phone) {
 // list rather than a form.
 export default function Profile({ navigation }) {
   const { user, pendingPhone, logout } = useCustomerAuth();
-  const { vegOnly } = useFeed();
+  const { vegOnly, resetFeed } = useFeed();
   const accent = accentFor(vegOnly);
 
   const name = user?.name ?? "Guest";
@@ -45,8 +45,11 @@ export default function Profile({ navigation }) {
 
   // Signing out drops the stack as well as the session — leaving the account
   // screens reachable by going back would show one customer's history to
-  // whoever signs in next.
+  // whoever signs in next. The feed goes with it for the same reason: the cart
+  // is persisted now, so an order left half-built would otherwise still be
+  // waiting on the next sign-in.
   const signOut = async () => {
+    resetFeed();
     await logout();
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
@@ -54,7 +57,7 @@ export default function Profile({ navigation }) {
   const go = (route, params) => navigation.navigate(route, params);
 
   return (
-    <Screen edges={["top"]}>
+    <Screen edges={["top", "bottom"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: SCROLL_PADDING }}

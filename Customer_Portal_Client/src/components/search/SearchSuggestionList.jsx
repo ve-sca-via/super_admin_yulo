@@ -16,7 +16,7 @@ function OfferStrip({ color }) {
       style={{ backgroundColor: color }}
       className="absolute inset-x-0 top-1/2 -mt-[6px] h-3 flex-row items-center pl-1"
     >
-      <Image source={offerTag} style={{ width: 9, height: 9 }} resizeMode="contain" />
+      <Image source={offerTag} style={{ width: 9, height: 9 }} resizeMode="contain" resizeMethod="resize" />
     </View>
   );
 }
@@ -57,7 +57,7 @@ export default function SearchSuggestionList({ items, matchLength = 0, vegOnly =
             style={{ width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: THUMB_SIZE / 2 }}
             className="overflow-hidden"
           >
-            <Image source={item.image} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+            <Image source={item.image} style={{ width: "100%", height: "100%" }} resizeMode="cover" resizeMethod="resize" />
             {item.offer ? <OfferStrip color={accent.ribbon} /> : null}
           </View>
 

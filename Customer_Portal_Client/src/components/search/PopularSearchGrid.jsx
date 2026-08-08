@@ -34,7 +34,7 @@ export default function PopularSearchGrid({ items, onSelect }) {
             <Image
               source={item.image}
               style={{ width: "100%", aspectRatio: 1 }}
-              resizeMode="contain"
+              resizeMode="contain" resizeMethod="resize"
             />
           ) : (
             <ImagePlaceholder />

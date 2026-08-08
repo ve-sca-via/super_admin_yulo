@@ -12,6 +12,7 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from "@expo-google-fonts/plus-jakarta-sans";
 
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import { CustomerAuthProvider } from "@/context/CustomerAuthContext";
 import { FeedProvider } from "@/context/FeedContext";
 import RootNavigator from "@/navigation/RootNavigator";
@@ -32,13 +33,17 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <CustomerAuthProvider>
-          <FeedProvider>
-            <NavigationContainer>
-              <RootNavigator />
-            </NavigationContainer>
-          </FeedProvider>
-        </CustomerAuthProvider>
+        {/* Inside the provider, so the fallback screen it renders can still
+            read the safe-area insets it needs to keep clear of the notch. */}
+        <ErrorBoundary>
+          <CustomerAuthProvider>
+            <FeedProvider>
+              <NavigationContainer>
+                <RootNavigator />
+              </NavigationContainer>
+            </FeedProvider>
+          </CustomerAuthProvider>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

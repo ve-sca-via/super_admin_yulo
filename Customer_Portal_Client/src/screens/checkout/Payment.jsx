@@ -80,11 +80,14 @@ export default function Payment({ navigation, route }) {
   // instrument is where the handoff would happen. The order is confirmed and
   // the cart emptied, which is what paying means from this screen's side.
   const pay = () => {
-    clearCart();
-
     // The checkout screens come off the stack with the cart: going back from a
     // confirmation has to land on the feed, not on a payment screen for an order
     // that has already been paid for.
+    //
+    // The reset goes first. Emptying the cart re-renders this screen, and the
+    // guard above would answer that render with "nothing left to pay for" —
+    // a flash of the empty state over an order that just succeeded. Navigating
+    // away first means the screen being emptied is already on its way out.
     navigation.reset({
       index: 1,
       routes: [
@@ -92,10 +95,12 @@ export default function Payment({ navigation, route }) {
         { name: "OrderPlaced", params: { restaurantName, vegFleet } },
       ],
     });
+
+    clearCart();
   };
 
   return (
-    <Screen edges={["top"]}>
+    <Screen edges={["top", "bottom"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: SCROLL_PADDING }}

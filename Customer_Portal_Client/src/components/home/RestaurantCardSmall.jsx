@@ -50,7 +50,7 @@ function OfferRibbon({ label }) {
       </Svg>
 
       <View className="flex-1 flex-row items-center pl-1">
-        <Image source={offerTag} style={{ width: 11, height: 11 }} resizeMode="contain" />
+        <Image source={offerTag} style={{ width: 11, height: 11 }} resizeMode="contain" resizeMethod="resize" />
         <Text
           numberOfLines={1}
           className="flex-1 text-center font-jakarta-medium text-[6px] leading-[10px] text-white"
@@ -89,7 +89,7 @@ export default function RestaurantCardSmall({ restaurant, ratingTone, onPress })
       </View>
 
       <View style={{ height: PHOTO_HEIGHT }} className="w-full overflow-hidden rounded-t-2xl">
-        <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+        <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" resizeMethod="resize" />
         {offer ? <OfferRibbon label={offer} /> : null}
         <CarouselDots count={photoCount} />
       </View>

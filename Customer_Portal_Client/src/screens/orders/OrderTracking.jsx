@@ -58,7 +58,7 @@ export default function OrderTracking({ navigation, route }) {
   const back = () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Home"));
 
   return (
-    <Screen edges={["top"]}>
+    <Screen edges={["top", "bottom"]}>
       {vegOnly ? (
         <View className="px-3 pb-1">
           <VegModeBanner className="w-full justify-center py-2" />

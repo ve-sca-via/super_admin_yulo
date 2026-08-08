@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View } from "react-native";
 import { X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -36,7 +36,13 @@ export default function AddressFormSheet({ visible, accent = ACCENTS.default, on
       statusBarTranslucent
       onRequestClose={onDismiss}
     >
-      <View className="flex-1">
+      {/* The multiline address field puts the keyboard over the bottom of the
+          window, which is exactly where this panel sits. Android resizes the
+          window itself, so only iOS needs the padding. */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        className="flex-1"
+      >
         <Pressable
           className="absolute inset-0 bg-black/50"
           onPress={onDismiss}
@@ -120,7 +126,7 @@ export default function AddressFormSheet({ visible, accent = ACCENTS.default, on
             Save address
           </Button>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -26,7 +26,7 @@ export default function DishCategoryRow({ items, onSelect }) {
           {/* Figma puts a drop-shadow on this node, but RN shadows are drawn
               from the view box rather than the alpha channel — a rectangle
               behind these transparent cut-outs reads as an artefact. */}
-          <Image source={item.image} style={{ width: IMAGE_SIZE, height: IMAGE_SIZE }} resizeMode="contain" />
+          <Image source={item.image} style={{ width: IMAGE_SIZE, height: IMAGE_SIZE }} resizeMode="contain" resizeMethod="resize" />
 
           <Text
             numberOfLines={2}

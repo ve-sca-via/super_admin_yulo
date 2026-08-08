@@ -41,7 +41,7 @@ export default function MenuItemCard({ item, accent, onAdd }) {
     <Card className="flex-1 overflow-hidden p-0">
       <View style={{ height: PHOTO_HEIGHT }} className="w-full bg-muted">
         {image ? (
-          <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+          <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" resizeMethod="resize" />
         ) : (
           // Menu items whose photo hasn't been shot yet keep the card's shape
           // instead of collapsing the row they're in.

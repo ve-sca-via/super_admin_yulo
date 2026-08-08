@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View } from "react-native";
 import { X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -36,7 +36,14 @@ export default function NoteSheet({
       statusBarTranslucent
       onRequestClose={onDismiss}
     >
-      <View className="flex-1">
+      {/* The field autofocuses, so the keyboard is always up on this sheet —
+          without this the panel keeps its place at the bottom of the window and
+          the Save button ends up underneath it. Android resizes the window
+          itself, so only iOS needs the padding. */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        className="flex-1"
+      >
         <Pressable
           className="absolute inset-0 bg-black/50"
           onPress={onDismiss}
@@ -80,7 +87,7 @@ export default function NoteSheet({
             Save
           </Button>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

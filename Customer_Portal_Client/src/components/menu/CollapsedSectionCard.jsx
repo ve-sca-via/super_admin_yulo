@@ -1,4 +1,5 @@
 import Card from "@/components/ui/Card";
+import { sectionItems } from "@/data/menu";
 import MenuSectionHeader from "./MenuSectionHeader";
 
 // Neighbouring folded sections share one card, the way the design stacks
@@ -12,7 +13,7 @@ export default function CollapsedSectionCard({ sections, onToggle }) {
         <MenuSectionHeader
           key={section.id}
           title={section.title}
-          itemCount={section.items.length}
+          itemCount={sectionItems(section).length}
           expanded={false}
           className="py-4"
           onPress={() => onToggle?.(section.id)}

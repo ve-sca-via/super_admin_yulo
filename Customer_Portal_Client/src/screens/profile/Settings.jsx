@@ -29,7 +29,7 @@ export default function Settings({ navigation }) {
       : navigation.navigate("Placeholder", { title: row.label, flow: "the settings flow" });
 
   return (
-    <Screen edges={["top"]}>
+    <Screen edges={["top", "bottom"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: SCROLL_PADDING }}

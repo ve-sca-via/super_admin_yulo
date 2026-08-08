@@ -69,7 +69,7 @@ export default function MenuListItem({ item, accent, onAdd }) {
           className="w-full items-center justify-center overflow-hidden rounded-2xl"
         >
           {image ? (
-            <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+            <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" resizeMethod="resize" />
           ) : (
             <Utensils size={26} color={accent.icon} />
           )}

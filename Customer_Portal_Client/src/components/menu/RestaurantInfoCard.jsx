@@ -66,7 +66,7 @@ export default function RestaurantInfoCard({
           style={{ width: LOGO_SIZE, height: LOGO_SIZE }}
           className="items-center justify-center overflow-hidden rounded-[24px] bg-[#111111] shadow-lg shadow-black/25"
         >
-          <Image source={logo} style={{ width: "72%", height: "72%" }} resizeMode="contain" />
+          <Image source={logo} style={{ width: "72%", height: "72%" }} resizeMode="contain" resizeMethod="resize" />
         </View>
       </View>
     </View>

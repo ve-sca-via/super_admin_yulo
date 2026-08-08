@@ -83,9 +83,15 @@ export default function FleetSearch({ navigation, route }) {
   const trackVegFleet = () =>
     navigation.navigate("FleetTracking", { restaurantName, vegFleet: true });
 
+  // Reached by resetting the stack past checkout, so there may be nothing
+  // behind this screen to go back to — the feed is where a customer who backs
+  // out of the wait belongs, and leaving the bar without an arrow would strand
+  // them here on a platform with no hardware back key.
+  const back = () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Home"));
+
   return (
     <Screen edges={["top"]}>
-      <AppBar title={`Your order · ${restaurantName}`} />
+      <AppBar title={`Your order · ${restaurantName}`} onBack={back} />
 
       <View className="flex-1 px-5 pt-6">
         <View className="flex-row items-center gap-2.5">

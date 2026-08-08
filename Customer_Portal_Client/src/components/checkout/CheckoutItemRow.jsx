@@ -22,7 +22,7 @@ export default function CheckoutItemRow({ line, accent, onChangeQuantity, onEdit
         className="items-center justify-center overflow-hidden rounded-xl bg-muted"
       >
         {line.image ? (
-          <Image source={line.image} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+          <Image source={line.image} style={{ width: "100%", height: "100%" }} resizeMode="cover" resizeMethod="resize" />
         ) : (
           <Utensils size={20} color="#999999" />
         )}

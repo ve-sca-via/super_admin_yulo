@@ -30,7 +30,7 @@ export default function StickyCartBar({
         <Image
           source={restaurantImage}
           style={{ width: 44, height: 44, borderRadius: 22 }}
-          resizeMode="cover"
+          resizeMode="cover" resizeMethod="resize"
         />
 
         <View className="flex-1">
@@ -68,12 +68,15 @@ export default function StickyCartBar({
         </View>
       </Button>
 
+      {/* This empties the cart rather than only hiding the bar, so the label
+          says so — "dismiss" would promise the order was still there to come
+          back to, and the cart is persisted now. */}
       <Pressable
         onPress={onDismiss}
         hitSlop={8}
         className="size-10 items-center justify-center rounded-full"
         accessibilityRole="button"
-        accessibilityLabel="Dismiss cart preview"
+        accessibilityLabel={`Empty your cart from ${restaurantName}`}
       >
         <X size={15} color="#1A1A1A" />
       </Pressable>
