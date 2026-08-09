@@ -16,7 +16,12 @@ export default function RestaurantCardLarge({
   onToggleFavourite,
   onPress,
 }) {
-  const { name, image, rating, cuisines, eta, distance, priceHint, pureVeg } = restaurant;
+  const { name, image, rating, cuisines = [], eta, distance, priceHint, pureVeg } = restaurant;
+
+  // Distance has no source in the API yet, and a storefront can legitimately
+  // have no cuisines listed — the meta row drops whatever is missing rather than
+  // printing an empty bullet between two gaps.
+  const meta = [eta, distance].filter(Boolean);
 
   return (
     <Card className="w-full overflow-hidden p-0">
@@ -47,19 +52,35 @@ export default function RestaurantCardLarge({
             <RatingPill rating={rating} tone={ratingTone} />
           </View>
 
-          <Text className="font-jakarta text-[14px] leading-[22px] text-muted-foreground">
-            {cuisines.join(" • ")}
-          </Text>
+          {cuisines.length ? (
+            <Text
+              numberOfLines={1}
+              className="font-jakarta text-[14px] leading-[22px] text-muted-foreground"
+            >
+              {cuisines.join(" • ")}
+            </Text>
+          ) : null}
 
           <View className="flex-row items-center gap-3">
-            <View className="flex-row items-center gap-1">
-              <Clock size={12} color="#666666" />
-              <Text className="font-jakarta-medium text-[12px] leading-[16px] text-muted-foreground">{eta}</Text>
-              <View className="mx-1 size-1 rounded-full bg-border" />
-              <Text className="font-jakarta-medium text-[12px] leading-[16px] text-muted-foreground">{distance}</Text>
-            </View>
+            {meta.length ? (
+              <View className="flex-row items-center gap-1">
+                <Clock size={12} color="#666666" />
+                {meta.map((entry, index) => (
+                  <View key={entry} className="flex-row items-center">
+                    {index ? <View className="mx-1 size-1 rounded-full bg-border" /> : null}
+                    <Text className="font-jakarta-medium text-[12px] leading-[16px] text-muted-foreground">
+                      {entry}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
-            <Text className="font-jakarta-medium text-[12px] leading-[18px] text-primary">{priceHint}</Text>
+            {priceHint ? (
+              <Text className="font-jakarta-medium text-[12px] leading-[18px] text-primary">
+                {priceHint}
+              </Text>
+            ) : null}
           </View>
 
           {pureVeg ? (

@@ -16,7 +16,11 @@ const BAND_TINT = "#FBE3D8";
 const GLYPH_INK = "#F3B183";
 
 export default function FavouriteCard({ restaurant, onPress }) {
-  const { name, image, rating, cuisines, eta, pureVeg } = restaurant;
+  const { name, image, rating, cuisines = [], eta, pureVeg } = restaurant;
+
+  // Built from whatever is actually known: a storefront with no cuisines listed
+  // and no stated prep time used to render "4.5 •  • undefined".
+  const meta = [rating, cuisines.join(", "), eta].filter(Boolean).join(" • ");
 
   return (
     <Card className="w-full overflow-hidden p-0">
@@ -54,7 +58,7 @@ export default function FavouriteCard({ restaurant, onPress }) {
             <Star size={15} color="#F5A524" fill="#F5A524" />
 
             <Text numberOfLines={1} className="flex-1 font-jakarta text-[15px] leading-[21px] text-muted-foreground">
-              {rating} • {cuisines.join(", ")} • {eta}
+              {meta}
             </Text>
           </View>
         </View>

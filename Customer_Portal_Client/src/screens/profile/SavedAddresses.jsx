@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Alert, Pressable, ScrollView, View } from "react-native";
 import { Plus } from "lucide-react-native";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
@@ -10,7 +10,6 @@ import AddressCard from "@/components/checkout/AddressCard";
 import AddressFormSheet from "@/components/checkout/AddressFormSheet";
 import PageHeader from "@/components/customer/PageHeader";
 import { accentFor } from "@/lib/accent";
-import { useDeleteAddress } from "@/hooks/useUser";
 
 const SCROLL_PADDING = 32;
 
@@ -23,17 +22,36 @@ const SCROLL_PADDING = 32;
 // Adding goes through the same sheet checkout uses, so an address created here
 // is shaped exactly like one created on the way to paying.
 export default function SavedAddresses() {
-  const { addresses, selectedAddress, selectAddress, addAddress } = useCustomerAuth();
+  const { addresses, selectedAddress, selectAddress, addAddress, deleteAddress } =
+    useCustomerAuth();
   const { vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
-  const deleteAddress = useDeleteAddress();
 
   const [adding, setAdding] = useState(false);
 
-  const saveAddress = (address) => {
-    addAddress(address);
+  const saveAddress = async (address) => {
     setAdding(false);
+    try {
+      await addAddress(address);
+    } catch (error) {
+      Alert.alert("Couldn't save that address", error.message);
+    }
   };
+
+  // Deleting an address can't be undone, and the delete control sits on the same
+  // card as "make this my address" — worth one confirmation.
+  const confirmDelete = (address) =>
+    Alert.alert("Remove this address?", address.line, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () =>
+          deleteAddress(address.id).catch((error) =>
+            Alert.alert("Couldn't remove that address", error.message),
+          ),
+      },
+    ]);
 
   return (
     <Screen edges={["top", "bottom"]}>
@@ -58,16 +76,22 @@ export default function SavedAddresses() {
         </Pressable>
 
         <View className="mt-5 gap-4 px-5">
-          {addresses.map((address) => (
-            <AddressCard
-              key={address.id}
-              address={address}
-              accent={accent}
-              selected={address.id === selectedAddress?.id}
-              onPress={() => selectAddress(address.id)}
-              onDelete={() => deleteAddress.mutate(address.id)}
-            />
-          ))}
+          {addresses.length ? (
+            addresses.map((address) => (
+              <AddressCard
+                key={address.id}
+                address={address}
+                accent={accent}
+                selected={address.id === selectedAddress?.id}
+                onPress={() => selectAddress(address.id)}
+                onDelete={() => confirmDelete(address)}
+              />
+            ))
+          ) : (
+            <Text className="mt-10 px-3 text-center font-jakarta text-[16px] leading-[23px] text-muted-foreground">
+              You haven't saved an address yet. Add one so your orders know where to go.
+            </Text>
+          )}
         </View>
       </ScrollView>
 

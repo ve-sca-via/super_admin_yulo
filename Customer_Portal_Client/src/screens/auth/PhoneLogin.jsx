@@ -22,10 +22,18 @@ export default function PhoneLogin({ onNext }) {
     if (!canContinue || loading) return;
     setError("");
     try {
-      await requestOtp(`${COUNTRY_CODE}${phone}`);
+      // Ten digits, no country code — the API validates `^\d{10}$` and rejected
+      // the "+91…" this used to send, so login could never get past this screen.
+      // The +91 stays on the label because that's what the customer is dialling
+      // under, not part of the value.
+      await requestOtp(phone);
       onNext();
-    } catch {
-      setError("Couldn't send the code. Please try again.");
+    } catch (requestError) {
+      setError(
+        requestError.code === "RATE_LIMITED"
+          ? "Too many attempts. Please wait a few minutes and try again."
+          : (requestError.message ?? "Couldn't send the code. Please try again."),
+      );
     }
   };
 

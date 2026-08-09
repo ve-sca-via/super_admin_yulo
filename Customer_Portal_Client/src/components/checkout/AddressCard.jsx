@@ -7,7 +7,10 @@ import { cn } from "@/lib/utils";
 // Figma "Delivery address". The chosen address is ringed in the accent rather
 // than ticked — the card itself is the radio, so there's no second control to
 // disagree with which one is highlighted.
-export default function AddressCard({ address, selected, accent, onPress }) {
+// `onDelete` is optional — the checkout flow's address list doesn't offer it,
+// only the account screen does. It was being read without being declared, which
+// threw a ReferenceError as soon as either screen rendered a single address.
+export default function AddressCard({ address, selected, accent, onPress, onDelete }) {
   return (
     <Pressable
       onPress={onPress}

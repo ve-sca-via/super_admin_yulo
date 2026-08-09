@@ -1,17 +1,16 @@
-import { Linking, ScrollView, View } from "react-native";
+import { ActivityIndicator, Linking, ScrollView, View } from "react-native";
 
 import { useFeed } from "@/context/FeedContext";
 import Screen from "@/components/ui/Screen";
+import Text from "@/components/ui/Text";
 import VegModeBanner from "@/components/home/VegModeBanner";
 import DeliveryTimeline from "@/components/orders/DeliveryTimeline";
 import EtaCard from "@/components/orders/EtaCard";
 import OrderSummaryCard from "@/components/orders/OrderSummaryCard";
 import PartnerCard from "@/components/orders/PartnerCard";
 import TrackingMap from "@/components/orders/TrackingMap";
-import { TRACKED_ORDER } from "@/data/orders";
 import { accentFor } from "@/lib/accent";
-import { useOrderTracking, useOrderSocket } from "@/hooks/useOrders";
-import { ActivityIndicator } from "react-native";
+import { useOrderSocket, useOrderTracking } from "@/hooks/useOrders";
 
 // How far the ETA card is pulled up over the map. The map is scenery; the card
 // is what's being read, and the overlap is what stops the screen opening on a
@@ -38,35 +37,50 @@ export default function OrderTracking({ navigation, route }) {
   const accent = accentFor(vegOnly);
 
   const orderId = route.params?.orderId;
-  const { data: liveOrder, isLoading } = useOrderTracking(orderId);
+  const { data: liveOrder, isLoading, isError } = useOrderTracking(orderId);
   useOrderSocket(orderId);
 
-  const order = liveOrder ? {
-    id: orderId,
-    etaMinutes: liveOrder.etaMinutes,
-    stage: liveOrder.status,
-    restaurant: {
-      name: liveOrder.restaurant?.name,
-      rating: liveOrder.restaurant?.rating?.toString(),
-      cuisine: "Multicuisine",
-      vegCuisine: "Multicuisine",
-    },
-    partner: liveOrder.deliveryPartner ? {
-      name: liveOrder.deliveryPartner.name,
-      initials: liveOrder.deliveryPartner.name.substring(0, 2),
-      rating: liveOrder.deliveryPartner.rating?.toString(),
-      deliveries: `${liveOrder.deliveryPartner.totalDeliveries}+ deliveries`,
-    } : null,
-    lines: (liveOrder.orderItems || []).map((item, i) => ({
-      id: item.menuItemId || i,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      icon: "bowl",
-      veg: item.isPureVeg,
-    })),
-    totalPaid: liveOrder.totalPaid
-  } : TRACKED_ORDER;
+  // `deliveryPartner` is null until someone accepts the order, and `etaMinutes`
+  // is null except while the partner is actually carrying it — both are normal
+  // states here, not missing data.
+  const partner = liveOrder?.deliveryPartner;
+
+  const order = liveOrder
+    ? {
+        id: orderId,
+        etaMinutes: liveOrder.etaMinutes,
+        stage: liveOrder.status,
+        restaurant: {
+          name: liveOrder.restaurant?.name,
+          rating: liveOrder.restaurant?.rating?.toString(),
+        },
+        partner: partner
+          ? {
+              name: partner.name,
+              initials: (partner.name ?? "")
+                .split(" ")
+                .map((word) => word[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join("")
+                .toUpperCase(),
+              rating: partner.rating?.toString(),
+              deliveries: partner.totalDeliveries
+                ? `${partner.totalDeliveries}+ deliveries`
+                : null,
+              usesVegOnlyFleetBag: partner.usesVegOnlyFleetBag,
+            }
+          : null,
+        lines: (liveOrder.orderItems ?? []).map((item, index) => ({
+          id: item.menuItemId ?? index,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          icon: "bowl",
+        })),
+        totalPaid: liveOrder.totalPaid,
+      }
+    : null;
 
   // No partner-contact endpoint yet: the masked number and the chat thread are
   // both dispatcher-side. Until they exist the call goes through the OS dialler
@@ -100,11 +114,29 @@ export default function OrderTracking({ navigation, route }) {
           <View className="mt-10 items-center justify-center">
             <ActivityIndicator size="large" color={accent.icon} />
           </View>
+        ) : !order ? (
+          // A seeded demo order used to be rendered here whenever the real one
+          // failed to load, which showed a stranger's delivery as though it were
+          // the customer's own.
+          <View className="mt-10 items-center justify-center gap-2 px-10">
+            <Text className="text-center font-jakarta-bold text-[17px] leading-[24px] text-foreground">
+              {isError ? "Couldn't load this order" : "Nothing to track"}
+            </Text>
+            <Text className="text-center font-jakarta text-[14px] leading-[20px] text-muted-foreground">
+              {isError
+                ? "Check your connection and try again."
+                : "Open an order from your history to follow it."}
+            </Text>
+          </View>
         ) : (
           <View className="px-4" style={{ marginTop: -CARD_OVERLAP }}>
             <EtaCard order={order} vegOnly={vegOnly} />
 
-            <DeliveryTimeline stage={order.stage} className="mt-4" />
+            <DeliveryTimeline
+              stage={order.stage}
+              timeline={liveOrder.timeline}
+              className="mt-4"
+            />
 
             {order.partner && (
               <PartnerCard partner={order.partner} accent={accent} onCall={call} onChat={chat} className="mt-4" />

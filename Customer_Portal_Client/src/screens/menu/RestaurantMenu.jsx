@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Keyboard, ScrollView, Share, View } from "react-native";
+import { Alert, Keyboard, ScrollView, Share, View } from "react-native";
 import { List } from "lucide-react-native";
 
 import { useFeed } from "@/context/FeedContext";
@@ -16,7 +16,7 @@ import MenuIndexSheet from "@/components/menu/MenuIndexSheet";
 import MenuSection from "@/components/menu/MenuSection";
 import RestaurantInfoCard from "@/components/menu/RestaurantInfoCard";
 import { cartLineFor } from "@/data/cart";
-import { DIETS, MENU, filterSections } from "@/data/menu";
+import { DIETS, filterSections } from "@/data/menu";
 import { accentFor } from "@/lib/accent";
 
 // Room under the last section for whichever floating controls are up.
@@ -36,7 +36,11 @@ function initialExpanded(menu) {
 // carried separately from the menu because a storefront with no seeded menu
 // still falls back to this one, and the cart is keyed on the name that was
 // tapped.
-export default function RestaurantMenu({ navigation, menu = MENU, restaurantName = MENU.name }) {
+// Both props are always supplied by the "Menu" route, which resolves them from
+// the API. There's deliberately no fallback to the seeded catalogue any more:
+// defaulting to it meant a storefront that failed to load silently rendered a
+// different restaurant's menu instead of saying so.
+export default function RestaurantMenu({ navigation, menu, restaurantName }) {
   const { cart, addToCart, clearCart, vegOnly } = useFeed();
 
   // App-wide veg mode is what repaints the accents, the same as on the feed;
@@ -49,6 +53,8 @@ export default function RestaurantMenu({ navigation, menu = MENU, restaurantName
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [indexOpen, setIndexOpen] = useState(false);
+  // Hides the summary bar without throwing the order away.
+  const [cartBarDismissed, setCartBarDismissed] = useState(false);
 
   // The dish the customer is trying to add while another storefront's cart is
   // open — set only while the discard prompt is up.
@@ -115,27 +121,38 @@ export default function RestaurantMenu({ navigation, menu = MENU, restaurantName
   };
 
   const shareRestaurant = () =>
-    Share.share({ message: `${restaurantName} on Yulo — ${menu.tagline}` }).catch(() => {
+    Share.share({
+      message: [`${restaurantName} on Yulo`, menu.cuisine].filter(Boolean).join(" — "),
+    }).catch(() => {
       // The customer dismissing the share sheet isn't an error worth surfacing.
     });
 
   // The single-restaurant cart rule holds here too: a dish from a second
   // storefront has to empty the first cart before it can be added.
   const addItem = (line) => {
-    if (cart && cart.restaurantName !== restaurantName) {
+    // Matched on id — two storefronts can share a name, and the cart knows its
+    // restaurant only by id.
+    if (cart && String(cart.restaurantId) !== String(menu.id)) {
       setPendingItem(line);
       return;
     }
-    addToCart(restaurantName, line);
+    addToCart(restaurantName, line).catch((error) => {
+      if (error.code === "CART_RESTAURANT_CONFLICT") setPendingItem(line);
+      else Alert.alert("Couldn't add this dish", error.message);
+    });
   };
 
   // The dish is already assembled by the time the prompt goes up, so agreeing to
   // lose the other cart adds exactly what was pending rather than starting over.
-  const discardCart = () => {
+  const discardCart = async () => {
     const line = pendingItem;
     setPendingItem(null);
-    clearCart();
-    addToCart(restaurantName, line);
+    try {
+      await clearCart();
+      await addToCart(restaurantName, line);
+    } catch (error) {
+      Alert.alert("Couldn't add this dish", error.message);
+    }
   };
 
   // What Add does depends on how much the dish has to be told: a composed plate
@@ -186,8 +203,8 @@ export default function RestaurantMenu({ navigation, menu = MENU, restaurantName
 
         <RestaurantInfoCard
           name={restaurantName}
-          tagline={menu.tagline}
-          logo={menu.logo}
+          tagline={menu.cuisine}
+          logo={menu.hero}
           rating={menu.rating}
           ratingTone={vegOnly ? "veg" : "amber"}
           costForTwo={menu.costForTwo}
@@ -270,22 +287,25 @@ export default function RestaurantMenu({ navigation, menu = MENU, restaurantName
         </Button>
       </View>
 
-      {cart ? (
+      {cart && !cartBarDismissed ? (
         <View className="absolute inset-x-[7px] bottom-2">
           <StickyCartBar
             restaurantName={cart.restaurantName}
-            restaurantImage={menu.logo}
+            restaurantImage={menu.hero}
             itemCount={cart.itemCount}
             vegOnly={vegOnly}
             // Already on this storefront's menu — the link only has somewhere to
             // go when the open cart belongs to a different one.
             onViewMenu={() =>
-              cart.restaurantName === restaurantName
+              String(cart.restaurantId) === String(menu.id)
                 ? scrollRef.current?.scrollTo({ y: 0, animated: true })
-                : navigation?.push("Menu", { restaurantName: cart.restaurantName })
+                : navigation?.push("Menu", {
+                    restaurantId: cart.restaurantId,
+                    restaurantName: cart.restaurantName,
+                  })
             }
             onViewCart={() => navigation?.navigate("Cart")}
-            onDismiss={clearCart}
+            onDismiss={() => setCartBarDismissed(true)}
           />
         </View>
       ) : null}

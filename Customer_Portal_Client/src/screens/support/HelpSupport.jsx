@@ -36,9 +36,9 @@ export default function HelpSupport({ navigation }) {
 
   const call = () => Linking.openURL(SUPPORT_PHONE).catch(() => {});
   
-  const { data: ticketsPage, isLoading } = useSupportTickets();
-  const tickets = ticketsPage?.tickets || ticketsPage?.data || [];
-  
+  // Already unwrapped to an array by the hook's `select`.
+  const { data: tickets = [], isLoading } = useSupportTickets();
+
   const { vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
 
@@ -72,12 +72,14 @@ export default function HelpSupport({ navigation }) {
             <ActivityIndicator size="small" color={accent.icon} className="mt-4" />
           ) : tickets.length > 0 ? (
             <View className="gap-3">
+              {/* The subject is what the customer wrote in about — a six-character
+                  slice of a Mongo id told them nothing about which ticket this is. */}
               {tickets.map((ticket) => (
                 <SettingsRow
-                  key={ticket._id || ticket.id}
-                  label={`Ticket #${(ticket._id || ticket.id).slice(-6)}`}
+                  key={ticket._id}
+                  label={ticket.subject ?? "Support ticket"}
                   icon={MessageCircle}
-                  onPress={() => openTicket(ticket._id || ticket.id)}
+                  onPress={() => openTicket(ticket._id)}
                 />
               ))}
             </View>

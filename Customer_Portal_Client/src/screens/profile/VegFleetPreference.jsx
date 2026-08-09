@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { ScrollView, Switch, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useFeed } from "@/context/FeedContext";
@@ -10,7 +10,6 @@ import Text from "@/components/ui/Text";
 import PageHeader from "@/components/customer/PageHeader";
 import { accentFor } from "@/lib/accent";
 import { usePreferences, useUpdatePreferences } from "@/hooks/useUser";
-import { ActivityIndicator } from "react-native";
 
 const SCROLL_PADDING = 120;
 
@@ -36,12 +35,21 @@ export default function VegFleetPreference({ navigation }) {
     setSaved(false);
   };
 
+  // Leaving the screen before the request lands told the customer their choice
+  // was saved whether or not it was.
   const save = () => {
-    updatePreferences.mutate({
-      vegFleetPreferenceEnabled: fleetPref
-    });
-    setSaved(true);
-    if (navigation.canGoBack()) navigation.goBack();
+    if (updatePreferences.isPending) return;
+
+    updatePreferences.mutate(
+      { vegFleetPreferenceEnabled: fleetPref },
+      {
+        onSuccess: () => {
+          setSaved(true);
+          if (navigation.canGoBack()) navigation.goBack();
+        },
+        onError: (error) => Alert.alert("Couldn't save your preference", error.message),
+      },
+    );
   };
 
   return (
@@ -91,7 +99,7 @@ export default function VegFleetPreference({ navigation }) {
           className="w-full"
         >
           <Text className="font-jakarta-bold text-[17px] leading-[24px] text-white">
-            Save changes
+            {updatePreferences.isPending ? "Saving…" : "Save changes"}
           </Text>
         </Button>
       </View>

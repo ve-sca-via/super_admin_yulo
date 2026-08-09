@@ -1,67 +1,151 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+
 import client from "@/api/client";
 
+// `GET /restaurants/:id/menu` returns categories → subCategories → items (note the
+// capital C — a lowercase `subcategories` silently loses every dish filed under a
+// subcategory, which is most of them on a large menu).
+//
+// Each MenuItem carries `optionGroups[]`, the full customisation schema. The UI's
+// two customisation surfaces read different shapes — `customisation` for the
+// bottom sheet, `detail.choices` for the full item page — so the mapping below is
+// what decides which one a dish gets: a dish with more than one required choice
+// group earns a page, everything else a sheet.
+const PAGE_WORTHY_GROUP_COUNT = 2;
+
+// `priceDeltaMinor` is named for minor units but is added straight onto
+// `effectivePrice` (rupees) in services/pricing.service.js's computeItemPrice —
+// the arithmetic is authoritative, so it's treated as rupees here too. Dividing
+// by 100 would under-price every customised line against what checkout charges.
+function mapOption(option) {
+  return {
+    id: option._id,
+    name: option.name,
+    description: option.description,
+    price: option.priceDeltaMinor ?? 0,
+  };
+}
+
+function mapItem(item) {
+  const groups = item.optionGroups ?? [];
+  const choiceGroups = groups.filter((group) => group.type === "single_choice");
+  const addOnGroups = groups.filter((group) => group.type === "addons");
+
+  const choices = choiceGroups.map((group) => ({
+    id: group._id,
+    title: group.name,
+    required: !!group.required,
+    defaultId: group.options?.[0]?._id,
+    options: (group.options ?? []).map(mapOption),
+  }));
+
+  const addOns = addOnGroups.flatMap((group) => (group.options ?? []).map(mapOption));
+
+  const price = item.effectivePrice ?? item.sellingPrice ?? 0;
+  const mrp = item.discountedPrice != null && item.sellingPrice > price ? item.sellingPrice : null;
+
+  const mapped = {
+    id: item._id,
+    name: item.name,
+    description: item.description ?? "",
+    price,
+    mrp,
+    // A remote URL has to be wrapped for <Image source>; a dish with no photo
+    // stays null and the cards draw their tinted fallback tile for it.
+    image: item.image ? { uri: item.image } : null,
+    veg: item.foodType === "veg",
+    foodType: item.foodType,
+    tag: item.badges?.includes("bestseller") ? "Bestseller" : undefined,
+    isFavorited: item.isFavorited,
+  };
+
+  if (choices.length >= PAGE_WORTHY_GROUP_COUNT) {
+    mapped.detail = {
+      badge: item.badges?.includes("bestseller") ? "Highly reordered" : undefined,
+      about: item.description ?? "",
+      image: item.image ? { uri: item.image } : null,
+      choices,
+    };
+  } else if (choices.length || addOns.length) {
+    mapped.customisation = { groups: choices, addOns };
+  }
+
+  return mapped;
+}
+
 export function useRestaurantMenu(restaurantId) {
-  // Fetch Restaurant Profile
   const restaurantQuery = useQuery({
     queryKey: ["restaurant", restaurantId],
     queryFn: () => client.get(`/restaurants/${restaurantId}`),
+    select: (data) => data?.restaurant ?? null,
     enabled: !!restaurantId,
   });
 
-  // Fetch Menu
   const menuQuery = useQuery({
     queryKey: ["menu", restaurantId],
     queryFn: () => client.get(`/restaurants/${restaurantId}/menu`),
+    // `{ menu }`, where menu is the array of categories.
+    select: (data) => data?.menu ?? [],
     enabled: !!restaurantId,
   });
 
-  // Map backend menu (categories -> subcategories -> items) into UI sections
-  const sections = [];
-  if (menuQuery.data) {
-    // Assuming backend returns an array of categories directly or an object with categories
-    const categories = Array.isArray(menuQuery.data) ? menuQuery.data : menuQuery.data.categories || [];
-    
-    categories.forEach(category => {
-      // Map category to a section
-      const sectionItems = [];
-      
-      // If it has subcategories
-      if (category.subcategories) {
-          category.subcategories.forEach(sub => {
-              if (sub.items) {
-                  sectionItems.push(...sub.items);
-              }
-          });
-      }
-      
-      // If items are directly on category
-      if (category.items) {
-          sectionItems.push(...category.items);
-      }
+  const menuSections = useMemo(() => {
+    const categories = menuQuery.data ?? [];
 
-      sections.push({
-        id: category._id || category.id,
-        title: category.name,
-        defaultOpen: true, // we can default everything to open initially
-        items: sectionItems.map(item => ({
-            id: item._id,
-            name: item.name,
-            price: item.sellingPrice || item.effectivePrice, // Using selling/effective price
-            veg: item.foodType !== "non_veg",
-            description: item.description,
-            image: null, // Typically no thumbnails in this API yet
-            bestseller: !!item.isBestseller,
-            customisable: item.optionGroups?.length > 0,
-            originalItem: item // preserve the original backend item
-        }))
-      });
-    });
-  }
+    return categories
+      .map((category) => {
+        const subGroups = (category.subCategories ?? [])
+          .map((sub) => ({
+            id: sub._id,
+            title: sub.name,
+            items: (sub.items ?? []).map(mapItem),
+          }))
+          .filter((group) => group.items.length > 0);
+
+        const directItems = (category.items ?? []).map(mapItem);
+
+        return {
+          id: category._id,
+          title: category.name,
+          defaultOpen: true,
+          // A category that files its dishes under subcategories keeps them as
+          // named groups — that's what the index sheet indents and jumps to.
+          ...(subGroups.length ? { groups: subGroups, items: directItems } : { items: directItems }),
+        };
+      })
+      .filter((section) => (section.items?.length ?? 0) + (section.groups?.length ?? 0) > 0);
+  }, [menuQuery.data]);
 
   return {
-    restaurant: restaurantQuery.data,
-    menuSections: sections,
+    restaurant: restaurantQuery.data ?? null,
+    menuSections,
     isLoading: restaurantQuery.isLoading || menuQuery.isLoading,
+    isError: restaurantQuery.isError || menuQuery.isError,
+    error: restaurantQuery.error ?? menuQuery.error,
+    refetch: () => {
+      restaurantQuery.refetch();
+      menuQuery.refetch();
+    },
   };
+}
+
+// The jump-to-category sheet is a separate, lighter endpoint — it doesn't need
+// every item's full customisation schema just to list section names and counts.
+export function useMenuCategories(restaurantId) {
+  return useQuery({
+    queryKey: ["menuCategories", restaurantId],
+    queryFn: () => client.get(`/restaurants/${restaurantId}/menu/categories`),
+    select: (data) => data?.categories ?? [],
+    enabled: !!restaurantId,
+  });
+}
+
+export function useItemDetail(itemId) {
+  return useQuery({
+    queryKey: ["item", itemId],
+    queryFn: () => client.get(`/items/${itemId}`),
+    select: (data) => (data?.item ? mapItem(data.item) : null),
+    enabled: !!itemId,
+  });
 }

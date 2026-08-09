@@ -8,7 +8,9 @@ import Button from "@/components/ui/Button";
 import BackButton from "@/components/customer/BackButton";
 import OtpInput from "@/components/customer/OtpInput";
 
-const OTP_LENGTH = 4;
+// The server issues and validates a six-digit code (`z.string().length(6)`), so
+// a four-box input could never produce one it would accept.
+const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
 export default function OtpVerification({ onNext }) {
@@ -85,7 +87,7 @@ export default function OtpVerification({ onNext }) {
           </Text>
 
           <Text className="mt-3 font-jakarta text-[14px] leading-[20px] text-muted-foreground">
-            Sent via SMS to {pendingPhone}
+            Sent via SMS to +91 {pendingPhone}
           </Text>
 
           <OtpInput length={OTP_LENGTH} value={otp} onChange={handleChange} className="mt-10" />

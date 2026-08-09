@@ -13,7 +13,7 @@ const MIN_SPLASH_MS = 1200;
 
 export default function Splash() {
   const navigation = useNavigation();
-  const { hydrated, hasSeenOnboarding, isAuthenticated } = useCustomerAuth();
+  const { hydrated, sessionReady, hasSeenOnboarding } = useCustomerAuth();
   const [minDelayElapsed, setMinDelayElapsed] = useState(false);
 
   useEffect(() => {
@@ -21,11 +21,15 @@ export default function Splash() {
     return () => clearTimeout(id);
   }, []);
 
+  // Only ever routes within the signed-out stack. A returning customer never
+  // arrives anywhere from here: restoring their session swaps the whole
+  // navigator for the signed-in one, which unmounts this screen. Waiting for
+  // `sessionReady` is what stops the login screen flashing up for a fraction of
+  // a second before that swap happens.
   useEffect(() => {
-    if (!hydrated || !minDelayElapsed) return;
-    if (!hasSeenOnboarding) return navigation.replace("Onboarding1");
-    navigation.replace(isAuthenticated ? "Home" : "Login");
-  }, [hydrated, minDelayElapsed, hasSeenOnboarding, isAuthenticated, navigation]);
+    if (!hydrated || !sessionReady || !minDelayElapsed) return;
+    navigation.replace(hasSeenOnboarding ? "Login" : "Onboarding1");
+  }, [hydrated, sessionReady, minDelayElapsed, hasSeenOnboarding, navigation]);
 
   return (
     <Screen edges={["top", "bottom"]} statusBarStyle="light" className="bg-primary">

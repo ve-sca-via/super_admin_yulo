@@ -1,4 +1,5 @@
-import { ScrollView, View } from "react-native";
+import { useState } from "react";
+import { Alert, ScrollView, View } from "react-native";
 import { Clock, Heart, Leaf, LifeBuoy, LogOut, MapPin, Settings as SettingsIcon } from "lucide-react-native";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
@@ -37,22 +38,39 @@ function formatPhone(phone) {
 // list rather than a form.
 export default function Profile({ navigation }) {
   const { user, pendingPhone, logout } = useCustomerAuth();
-  const { vegOnly, resetFeed } = useFeed();
+  const { vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
+  const [signingOut, setSigningOut] = useState(false);
 
   const name = user?.name ?? "Guest";
   const phone = user?.phone ?? pendingPhone;
 
   // Signing out drops the stack as well as the session — leaving the account
   // screens reachable by going back would show one customer's history to
-  // whoever signs in next. The feed goes with it for the same reason: the cart
-  // is persisted now, so an order left half-built would otherwise still be
-  // waiting on the next sign-in.
-  const signOut = async () => {
-    resetFeed();
-    await logout();
-    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-  };
+  // whoever signs in next. The cart isn't cleared here: it lives server-side
+  // against this account, so it's waiting for them when they sign back in
+  // rather than being destroyed on the way out.
+  const signOut = () =>
+    Alert.alert("Log out?", "You'll need your phone number to sign back in.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log out",
+        style: "destructive",
+        // No navigation call here on purpose: clearing the session swaps the
+        // signed-in stack out from under this screen, which unmounts it and
+        // every other account screen behind it. Resetting to "Login" as well
+        // would target a route this navigator no longer has.
+        onPress: async () => {
+          if (signingOut) return;
+          setSigningOut(true);
+          try {
+            await logout();
+          } finally {
+            setSigningOut(false);
+          }
+        },
+      },
+    ]);
 
   const go = (route, params) => navigation.navigate(route, params);
 
@@ -104,7 +122,11 @@ export default function Profile({ navigation }) {
 
           <SettingsRow label="Help & support" icon={LifeBuoy} onPress={() => go("Help")} />
 
-          <SettingsRow label="Log out" icon={LogOut} onPress={signOut} />
+          <SettingsRow
+            label={signingOut ? "Logging out…" : "Log out"}
+            icon={LogOut}
+            onPress={signOut}
+          />
         </View>
       </ScrollView>
     </Screen>

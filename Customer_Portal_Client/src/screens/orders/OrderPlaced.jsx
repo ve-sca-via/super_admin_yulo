@@ -22,12 +22,16 @@ export default function OrderPlaced({ navigation, route }) {
 
   const restaurantName = route.params?.restaurantName;
   const vegFleet = route.params?.vegFleet ?? false;
+  const orderId = route.params?.orderId;
 
   // A veg-fleet request is a promise the app made on checkout, so it's repeated
   // here — this is where the customer finds out it was actually carried onto the
   // order, and the tracking screen is where they find out whether it was met.
+  //
+  // `orderId` travels with it: the tracking screens fetch by id, and without it
+  // they have no order to follow.
   const track = () =>
-    navigation.navigate(vegFleet ? "FleetSearch" : "Tracking", { restaurantName });
+    navigation.navigate(vegFleet ? "FleetSearch" : "Tracking", { orderId, restaurantName });
 
   return (
     <Screen edges={["top"]}>

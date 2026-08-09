@@ -1,14 +1,13 @@
-import { Linking, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, ScrollView, View } from "react-native";
 import { ArrowLeft, Bike, Leaf, Phone } from "lucide-react-native";
 
 import { useFeed } from "@/context/FeedContext";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import VegModeBanner from "@/components/home/VegModeBanner";
-import { TIMELINE, TRACKED_ORDER, stageIndex } from "@/data/orders";
+import { TIMELINE, stageIndex } from "@/data/orders";
 import { accentFor } from "@/lib/accent";
-import { useOrderTracking, useOrderSocket } from "@/hooks/useOrders";
-import { ActivityIndicator } from "react-native";
+import { useOrderSocket, useOrderTracking } from "@/hooks/useOrders";
 
 const ILLUSTRATION_HEIGHT = 200;
 const SCROLL_PADDING = 32;
@@ -29,20 +28,32 @@ export default function FleetOrderTracking({ navigation, route }) {
   const accent = accentFor(vegOnly);
 
   const orderId = route.params?.orderId;
-  const { data: liveOrder, isLoading } = useOrderTracking(orderId);
+  const { data: liveOrder, isLoading, isError } = useOrderTracking(orderId);
   useOrderSocket(orderId);
 
-  const order = liveOrder ? {
-    id: orderId,
-    etaMinutes: liveOrder.etaMinutes,
-    stage: liveOrder.status,
-    partner: liveOrder.deliveryPartner ? {
-      name: liveOrder.deliveryPartner.name,
-      initials: liveOrder.deliveryPartner.name.substring(0, 2),
-    } : null,
-  } : TRACKED_ORDER;
-  
-  const current = stageIndex(order.stage);
+  const partner = liveOrder?.deliveryPartner;
+
+  const order = liveOrder
+    ? {
+        id: orderId,
+        etaMinutes: liveOrder.etaMinutes,
+        stage: liveOrder.status,
+        partner: partner
+          ? {
+              name: partner.name,
+              initials: (partner.name ?? "")
+                .split(" ")
+                .map((word) => word[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join("")
+                .toUpperCase(),
+            }
+          : null,
+      }
+    : null;
+
+  const current = stageIndex(order?.stage);
 
   // The screen is reached from the veg-fleet search, so the bag is the default —
   // an ordinary order that lands here through some other route shouldn't claim
@@ -95,11 +106,25 @@ export default function FleetOrderTracking({ navigation, route }) {
           <View className="mt-10 items-center justify-center">
             <ActivityIndicator size="large" color={accent.icon} />
           </View>
+        ) : !order ? (
+          <View className="mt-10 items-center justify-center gap-2 px-10">
+            <Text className="text-center font-jakarta-bold text-[17px] leading-[24px] text-foreground">
+              {isError ? "Couldn't load this order" : "Nothing to track"}
+            </Text>
+            <Text className="text-center font-jakarta text-[14px] leading-[20px] text-muted-foreground">
+              {isError
+                ? "Check your connection and try again."
+                : "Open an order from your history to follow it."}
+            </Text>
+          </View>
         ) : (
           <View className="px-5 pt-6">
             <View className="flex-row items-start justify-between gap-3">
+              {/* `etaMinutes` is null except while the partner is actually
+                  carrying the order — "Arriving in null mins" is what printing it
+                  unconditionally produced. */}
               <Text className="flex-1 font-jakarta-extrabold text-[26px] leading-[34px] text-foreground">
-                Arriving in {order.etaMinutes} mins
+                {order.etaMinutes ? `Arriving in ${order.etaMinutes} mins` : "On its way"}
               </Text>
 
               <View className="rounded-full bg-[#E4F1E5] px-3.5 py-1.5">

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
 import {
   ArrowLeft,
   Check,
@@ -28,11 +28,10 @@ import MenuItemCard from "@/components/menu/MenuItemCard";
 import ItemCustomiseSheet from "@/components/menu/ItemCustomiseSheet";
 import { shortAddress } from "@/data/addresses";
 import { TIP_OPTIONS, cartLineFor } from "@/data/cart";
-import { findItem, formatPrice } from "@/data/menu";
+import { formatPrice } from "@/data/menu";
 import { accentFor } from "@/lib/accent";
 import { cn } from "@/lib/utils";
 import { useCheckoutSummary } from "@/hooks/useCheckout";
-import { ActivityIndicator } from "react-native";
 
 // Room under the policy note for the pay bar, which is taller than the other
 // screens' because it carries the payment method above the button.
@@ -42,10 +41,13 @@ const SCROLL_PADDING = 190;
 // their own — `MenuItemCard` stretches to its column everywhere else.
 const SUGGESTION_WIDTH = 190;
 
+// The API takes exactly two payment methods — "cod" or "online" (the instrument
+// behind an online payment is Razorpay's business, chosen on the next screen).
+// Offering "UPI" and "Card" as peers of "Pay on delivery" here implied a
+// distinction the order endpoint has no way to record.
 const PAYMENT_METHODS = [
-  { id: "cod", label: "Pay on Delivery (Cash/UPI)", note: "Pay cash or ask for QR code" },
-  { id: "upi", label: "UPI", note: "Google Pay, PhonePe, Paytm" },
-  { id: "card", label: "Credit / Debit card", note: "Visa, Mastercard, RuPay" },
+  { id: "cod", label: "Pay on Delivery (Cash/UPI)", note: "Pay cash or scan a QR at the door" },
+  { id: "online", label: "Pay now", note: "UPI, cards, net banking" },
 ];
 
 // No tip is a choice the customer can come back to, not just the absence of one
@@ -104,7 +106,10 @@ export default function Checkout({ navigation }) {
   // The dish whose customisation sheet is open, and the line it came from if
   // it's an existing row being edited rather than a suggestion being added.
   const [customising, setCustomising] = useState(null);
-  const [suggestionTab, setSuggestionTab] = useState(null);
+  // The upsell endpoint returns one flat list, so there's only ever one tab to
+  // be on — the rail below still renders it as a tab for the design, but there's
+  // nothing to switch between until the API groups its suggestions.
+  const [, setSuggestionTab] = useState(null);
 
   const { data: summary, isLoading: isLoadingSummary } = useCheckoutSummary();
 
@@ -116,9 +121,9 @@ export default function Checkout({ navigation }) {
       items: summary.upsellItems.map((item) => ({
         id: item._id,
         name: item.name,
-        price: item.effectivePrice,
-        veg: item.foodType !== "non_veg",
-        image: null,
+        price: item.effectivePrice ?? item.sellingPrice,
+        veg: item.foodType === "veg",
+        image: item.image ? { uri: item.image } : null,
       })),
     }];
   }, [summary]);
@@ -172,16 +177,29 @@ export default function Checkout({ navigation }) {
     toPay: summary.bill.grandTotal + tip,
   } : null;
 
-  const method = PAYMENT_METHODS.find((entry) => entry.id === payment);
+  const method = PAYMENT_METHODS.find((entry) => entry.id === payment) ?? PAYMENT_METHODS[0];
 
-  const openMenu = () => navigation.navigate("Menu", { restaurantName: cart.restaurantName });
+  // The order is placed against the *default* saved address — that's what
+  // `POST /orders/checkout` falls back to and what the summary already resolved,
+  // so showing anything else here would promise a delivery the server won't make.
+  const deliveryAddress = summary?.address ?? selectedAddress;
+
+  const openMenu = () =>
+    navigation.navigate("Menu", {
+      restaurantId: cart.restaurantId,
+      restaurantName: cart.restaurantName,
+    });
 
   // Suggestions come from the storefront already in the cart, so there's no
   // discard rule to apply here — only the same question of how much the dish
   // has to be told before it can be added.
   const addSuggestion = (item) => {
     if (item.detail) {
-      navigation.navigate("Item", { restaurantName: cart.restaurantName, itemId: item.id });
+      navigation.navigate("Item", {
+        restaurantId: cart.restaurantId,
+        restaurantName: cart.restaurantName,
+        itemId: item.id,
+      });
       return;
     }
 
@@ -190,35 +208,50 @@ export default function Checkout({ navigation }) {
       return;
     }
 
-    addToCart(cart.restaurantName, cartLineFor({ item }));
+    addToCart(cart.restaurantName, cartLineFor({ item })).catch((error) =>
+      Alert.alert("Couldn't add that", error.message),
+    );
   };
 
-  // Editing a row is the same sheet answered again: the old line goes and what
-  // comes back takes its place, rather than the dish landing in the cart twice.
-  const editLine = (line) => {
-    // If the original item object is in the line (via cartState mapper), use it
-    if (line.item) {
-        setCustomising({ item: { ...line.item, veg: line.veg, price: line.price }, lineKey: line.key });
-    }
-  };
+  // Editing a row re-opens the customisation sheet over it. The cart's own lines
+  // carry no option schema (`GET /cart` returns chosen option ids and names, not
+  // the groups they came from), so a line can only be re-answered from the menu —
+  // this opens the storefront at that dish rather than a sheet with no choices in
+  // it, which is what the "Edit" link used to produce.
+  const editLine = (line) =>
+    navigation.navigate("Item", {
+      restaurantId: cart.restaurantId,
+      restaurantName: cart.restaurantName,
+      itemId: line.item?.id ?? line.menuItemId,
+    });
 
-  const addCustomised = ({ item, selection, addOns, quantity }) => {
+  const addCustomised = async ({ item, selection, addOns, quantity }) => {
     const replacing = customising?.lineKey;
     setCustomising(null);
 
-    if (replacing) setLineQuantity(replacing, 0);
-
-    addToCart(
-      cart.restaurantName,
-      cartLineFor({ item, quantity, selection, chosenAddOns: addOns }),
-    );
+    try {
+      if (replacing) await setLineQuantity(replacing, 0);
+      await addToCart(cart.restaurantName, cartLineFor({ item, quantity, selection, chosenAddOns: addOns }));
+    } catch (error) {
+      Alert.alert("Couldn't update your cart", error.message);
+    }
   };
 
   // Nothing is settled here — how the order is paid for is its own screen, and
   // the cart stays put until it is. The two answers this screen collected that
   // the bill and the dispatch both need travel with it, so neither has to be
   // asked again.
-  const placeOrder = () => navigation.navigate("Payment", { tip, vegFleet, deliveryNote, cookingNote, cutlery });
+  // The choices this screen collected that the bill and the dispatch both need
+  // travel with it, so neither has to be asked again.
+  const placeOrder = () =>
+    navigation.navigate("Payment", {
+      tip,
+      vegFleet,
+      deliveryNote,
+      cookingNote,
+      cutlery,
+      paymentMethod: payment,
+    });
 
   return (
     <Screen edges={["top"]}>
@@ -245,20 +278,22 @@ export default function Checkout({ navigation }) {
           onPress={() => navigation.navigate("Address")}
           className="mx-5 mt-4 flex-row items-center gap-3 rounded-2xl bg-card p-4 shadow-md shadow-black/10"
           accessibilityRole="button"
-          accessibilityLabel={`Delivering to ${selectedAddress?.label}. Change address`}
+          accessibilityLabel={
+            deliveryAddress ? `Delivering to ${deliveryAddress.label}. Change address` : "Add a delivery address"
+          }
         >
           <MapPin size={20} color={accent.icon} strokeWidth={2.2} />
 
           <View className="flex-1">
             <Text className="font-jakarta-bold text-[15px] leading-[21px] text-foreground">
-              Delivering to {selectedAddress?.label ?? "your address"}
+              {deliveryAddress ? `Delivering to ${deliveryAddress.label}` : "Add a delivery address"}
             </Text>
 
             <Text
               numberOfLines={1}
               className="font-jakarta text-[13px] leading-[19px] text-muted-foreground"
             >
-              {shortAddress(selectedAddress)}
+              {deliveryAddress ? shortAddress(deliveryAddress) : "An order can't be placed without one"}
             </Text>
           </View>
 
@@ -540,9 +575,14 @@ export default function Checkout({ navigation }) {
         <Button
           onPress={placeOrder}
           size="lg"
-          style={{ backgroundColor: accent.icon }}
+          // The server rejects a checkout with no address to deliver to; better to
+          // say so here than to let the pay button fail.
+          disabled={!deliveryAddress}
+          style={deliveryAddress ? { backgroundColor: accent.icon } : undefined}
           className="mt-3 w-full shadow-lg shadow-black/20"
-          accessibilityLabel={`Pay ${formatPrice(bill?.toPay || 0)}`}
+          accessibilityLabel={
+            deliveryAddress ? `Pay ${formatPrice(bill?.toPay || 0)}` : "Add a delivery address first"
+          }
         >
           <Text className="font-jakarta-bold text-[17px] leading-[24px] text-white">
             Pay {formatPrice(bill?.toPay || 0)}

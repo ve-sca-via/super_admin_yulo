@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 
 import { useFeed } from "@/context/FeedContext";
 import Screen from "@/components/ui/Screen";
@@ -9,7 +9,7 @@ import PageHeader from "@/components/customer/PageHeader";
 import FavouriteCard from "@/components/profile/FavouriteCard";
 import { withVegCuisines } from "@/data/restaurants";
 import { useFavorites } from "@/hooks/useUser";
-import { ActivityIndicator } from "react-native";
+import { toRestaurantCard } from "@/lib/restaurant";
 
 const SCROLL_PADDING = 32;
 
@@ -25,27 +25,34 @@ export default function Favourites({ navigation }) {
 
   const [pendingRestaurant, setPendingRestaurant] = useState(null);
 
-  const saved = (remoteFavorites || []).map((restaurant) =>
-    withVegCuisines(restaurant, vegOnly),
+  const saved = (remoteFavorites ?? []).map((restaurant) =>
+    withVegCuisines(toRestaurantCard(restaurant), vegOnly),
   );
 
-  const openMenu = (restaurantName) => navigation.navigate("Menu", { restaurantName });
+  // The menu is fetched by id — passing only a name left this screen opening a
+  // storefront the menu route had nothing to look up.
+  const openMenu = (restaurant) =>
+    navigation.navigate("Menu", { restaurantId: restaurant.id, restaurantName: restaurant.name });
 
   // The same rule the feed enforces: a cart from another storefront has to be
   // given up before a second one opens.
   const openRestaurant = (restaurant) => {
-    if (cart && restaurant.name !== cart.restaurantName) {
+    if (cart && String(restaurant.id) !== String(cart.restaurantId)) {
       setPendingRestaurant(restaurant);
       return;
     }
-    openMenu(restaurant.name);
+    openMenu(restaurant);
   };
 
-  const discardCart = () => {
+  const discardCart = async () => {
     const next = pendingRestaurant;
-    clearCart();
     setPendingRestaurant(null);
-    if (next) openMenu(next.name);
+    try {
+      await clearCart();
+    } catch {
+      // The menu still opens; the add will raise the conflict again there.
+    }
+    if (next) openMenu(next);
   };
 
   return (
@@ -62,8 +69,8 @@ export default function Favourites({ navigation }) {
           <View className="mt-6 gap-5 px-5">
             {saved.map((restaurant) => (
               <FavouriteCard
-                key={restaurant._id}
-                restaurant={{ ...restaurant, id: restaurant._id }}
+                key={restaurant.id}
+                restaurant={restaurant}
                 onPress={() => openRestaurant(restaurant)}
               />
             ))}

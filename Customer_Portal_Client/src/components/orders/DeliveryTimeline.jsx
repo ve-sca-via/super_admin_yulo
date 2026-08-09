@@ -51,8 +51,35 @@ function StageDot({ state }) {
   );
 }
 
-export default function DeliveryTimeline({ stage, className }) {
+// Turns the tracking response's ISO timestamp into the "08:15 pm" the design
+// prints. Explicitly en-GB rather than the device locale: Hermes ships without
+// ICU data, so an arbitrary locale silently falls back and can produce a
+// 24-hour string where the design expects am/pm.
+function formatStageTime(timestamp) {
+  if (!timestamp) return null;
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const suffix = hours < 12 ? "am" : "pm";
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+
+  return `${String(hour12).padStart(2, "0")}:${minutes} ${suffix}`;
+}
+
+// `timeline` is the API's per-stage list. Times used to be hardcoded into the
+// stage definitions, which printed the same "08:15 pm" under every order
+// regardless of when it was actually placed. Not every completed stage has a
+// real timestamp — this backend keeps no per-stage history — so a stage without
+// one simply shows no time rather than an invented one.
+export default function DeliveryTimeline({ stage, timeline = [], className }) {
   const current = stageIndex(stage);
+
+  const timeByStage = Object.fromEntries(
+    timeline.map((entry) => [entry.stage, formatStageTime(entry.timestamp)]),
+  );
 
   return (
     <Card className={className}>
@@ -92,9 +119,9 @@ export default function DeliveryTimeline({ stage, className }) {
                   {step.label}
                 </Text>
 
-                {step.at ? (
+                {timeByStage[step.id] ? (
                   <Text className="font-jakarta text-[15px] leading-[21px] text-muted-foreground">
-                    {step.at}
+                    {timeByStage[step.id]}
                   </Text>
                 ) : null}
 

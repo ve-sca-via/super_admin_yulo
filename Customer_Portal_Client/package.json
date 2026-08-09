@@ -22,7 +22,9 @@
     "expo-image-picker": "~17.0.11",
     "expo-location": "~19.0.8",
     "expo-secure-store": "~15.0.8",
+    "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
+    "expo-system-ui": "~6.0.9",
     "lucide-react-native": "^1.25.0",
     "nativewind": "^4.2.6",
     "react": "19.1.0",
@@ -44,11 +46,15 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:web": "expo export -p web",
-    "start:web": "serve dist -l $PORT -s"
+    "start:web": "serve dist -l $PORT -s",
+    "lint": "eslint src App.js",
+    "typecheck": "expo export --platform android --output-dir .expo/bundle-check --clear"
   },
   "private": true,
   "devDependencies": {
     "babel-plugin-module-resolver": "^5.0.3",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~10.0.0",
     "prettier-plugin-tailwindcss": "^0.5.14",
     "serve": "^14.2.6",
     "tailwindcss": "^3.4.19"

@@ -37,13 +37,26 @@ export default function EtaCard({ order, vegOnly, className }) {
         Your order is on the way
       </Text>
 
-      <Text className="mt-3 font-jakarta text-[15px] leading-[21px] text-muted-foreground">
-        Arriving in
-      </Text>
+      {/* The ETA only exists while the partner is actually carrying the order —
+          it's null on every earlier leg, including "assigned, heading to the
+          restaurant". Printing it regardless produced "null mins" for most of
+          the order's life, so the card states the stage instead until there's a
+          real figure to give. */}
+      {order.etaMinutes ? (
+        <>
+          <Text className="mt-3 font-jakarta text-[15px] leading-[21px] text-muted-foreground">
+            Arriving in
+          </Text>
 
-      <Text className="font-jakarta-extrabold text-[38px] leading-[46px] text-foreground">
-        {order.etaMinutes} mins
-      </Text>
+          <Text className="font-jakarta-extrabold text-[38px] leading-[46px] text-foreground">
+            {order.etaMinutes} mins
+          </Text>
+        </>
+      ) : (
+        <Text className="mt-3 font-jakarta-semibold text-[17px] leading-[24px] text-muted-foreground">
+          We'll show an arrival time once your order is picked up
+        </Text>
+      )}
 
       <View className="mt-3 flex-row items-center gap-3">
         <View

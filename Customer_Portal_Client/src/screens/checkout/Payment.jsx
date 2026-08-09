@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
 import { ArrowLeft, ChevronRight, MapPin } from "lucide-react-native";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
@@ -10,16 +10,15 @@ import Text from "@/components/ui/Text";
 import VegModeBanner from "@/components/home/VegModeBanner";
 import PaymentGroup from "@/components/payment/PaymentGroup";
 import { shortAddress } from "@/data/addresses";
-import { DEFAULT_METHOD_ID, PAYMENT_GROUPS, formatAmount } from "@/data/payment";
+import { DEFAULT_METHOD_ID, PAYMENT_GROUPS, apiMethodFor, formatAmount } from "@/data/payment";
 import { accentFor } from "@/lib/accent";
 import { useCheckoutSummary, usePlaceOrder } from "@/hooks/useCheckout";
-import { ActivityIndicator } from "react-native";
 
 // Room under the last group so the bottom card clears the gesture bar.
 const SCROLL_PADDING = 40;
 
 export default function Payment({ navigation, route }) {
-  const { cart, vegOnly, clearCart } = useFeed();
+  const { cart, cartLoading, vegOnly } = useFeed();
   const { selectedAddress } = useCustomerAuth();
   const accent = accentFor(vegOnly);
 
@@ -29,7 +28,11 @@ export default function Payment({ navigation, route }) {
   const cookingNote = route.params?.cookingNote ?? "";
   const cutlery = route.params?.cutlery ?? false;
 
-  const [method, setMethod] = useState(DEFAULT_METHOD_ID);
+  // Checkout already asked cash-or-card; opening on that answer means the
+  // customer isn't asked the same question twice.
+  const [method, setMethod] = useState(() =>
+    route.params?.paymentMethod === "online" ? "phonepe" : DEFAULT_METHOD_ID,
+  );
 
   const placeOrder = usePlaceOrder();
   const { data: summary, isLoading: isLoadingSummary } = useCheckoutSummary();
@@ -44,6 +47,16 @@ export default function Payment({ navigation, route }) {
     setCollapsed((current) =>
       current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id],
     );
+
+  if (cartLoading || isLoadingSummary) {
+    return (
+      <Screen edges={["top"]}>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color={accent.icon} />
+        </View>
+      </Screen>
+    );
+  }
 
   // Reached with an emptied cart — a back-navigation after paying, or the last
   // line counted down on checkout. There's nothing to charge for, so the screen
@@ -72,43 +85,110 @@ export default function Payment({ navigation, route }) {
     );
   }
 
-  if (isLoadingSummary) {
-    return (
-      <Screen edges={["top"]}>
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={accent.icon} />
-        </View>
-      </Screen>
-    );
-  }
-
-  const toPay = summary?.bill ? summary.bill.grandTotal + tip : 0;
+  const address = summary?.address ?? selectedAddress;
+  const toPay = (summary?.bill?.grandTotal ?? 0) + tip;
   const restaurantName = cart.restaurantName;
 
-  // Real backend call to create order
+  const onOrderPlaced = (response) => {
+    // A matched Idempotency-Key retry returns a much smaller shape — just
+    // `{ order: { orderId } }` — so the confirmation reads its fields defensively
+    // rather than assuming the full 201 payload.
+    const orderId = response?.orderId ?? response?.order?.orderId ?? response?.order?._id;
+
+    // Resetting rather than pushing: going back from a confirmation must not land
+    // on a checkout for a cart that has already been charged and emptied.
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: "Home" },
+        {
+          name: "OrderPlaced",
+          params: {
+            orderId,
+            restaurantName: response?.restaurantName ?? restaurantName,
+            vegFleet: response?.vegFleetOptIn ?? vegFleet,
+          },
+        },
+      ],
+    });
+  };
+
+  const onOrderFailed = (error) => {
+    switch (error.code) {
+      // Both of these mean the cart no longer matches the live menu. The hook has
+      // already re-fetched it; the customer is told what changed rather than being
+      // charged a different amount than the one they agreed to.
+      case "CART_PRICE_CHANGED":
+        Alert.alert(
+          "Prices have changed",
+          "Some items were re-priced since you added them. Please review your cart before paying.",
+          [{ text: "Review cart", onPress: () => navigation.navigate("Cart") }],
+        );
+        break;
+
+      case "ORDER_ITEM_UNAVAILABLE": {
+        const items = error.details?.items?.map((item) => item.name).filter(Boolean) ?? [];
+        Alert.alert(
+          "Some items are unavailable",
+          items.length
+            ? `${items.join(", ")} ${items.length === 1 ? "is" : "are"} no longer available. Please update your cart.`
+            : "Something in your cart is no longer available. Please update your cart.",
+          [{ text: "Review cart", onPress: () => navigation.navigate("Cart") }],
+        );
+        break;
+      }
+
+      case "NOT_FOUND":
+        Alert.alert("Address not found", "Pick a delivery address and try again.", [
+          { text: "Choose address", onPress: () => navigation.navigate("Address") },
+        ]);
+        break;
+
+      default:
+        Alert.alert("Couldn't place your order", error.message);
+    }
+  };
+
   const pay = () => {
+    if (placeOrder.isPending) return;
+
+    if (!address) {
+      Alert.alert("Add a delivery address", "We need somewhere to deliver this order to.", [
+        { text: "Choose address", onPress: () => navigation.navigate("Address") },
+      ]);
+      return;
+    }
+
+    const apiMethod = apiMethodFor(method);
+
+    // No payment gateway SDK is bundled, so an "online" order would be created
+    // and then have no way to be paid — it would sit unpaid while the customer
+    // believed it was settled. Saying so is the honest end state until Razorpay
+    // Checkout is wired in (see the README's integration note).
+    if (apiMethod === "online") {
+      Alert.alert(
+        "Online payment isn't available yet",
+        "Card, UPI and net banking need the payment gateway to be connected. You can pay cash or by UPI at the door instead.",
+        [{ text: "Use pay on delivery", onPress: () => setMethod("cod") }, { text: "Cancel", style: "cancel" }],
+      );
+      return;
+    }
+
     placeOrder.mutate(
       {
-        restaurantId: cart.restaurantId,
-        addressId: selectedAddress?._id || selectedAddress?.id,
-        paymentMethod: method,
+        // `addressId` defaults server-side to the customer's default address, but
+        // it's sent explicitly so the order goes where the screen said it would.
+        addressId: address._id ?? address.id,
+        paymentMethod: apiMethod,
         tip,
-        specialInstructions: [deliveryNote, cookingNote].filter(Boolean).join(" | "),
+        // These are the field names the checkout schema validates — the previous
+        // `specialInstructions`/`needsCutlery`/`restaurantId` were silently dropped.
+        deliveryInstructions: [deliveryNote, cookingNote].filter(Boolean).join(" | "),
+        cookingRequests: !!cookingNote,
+        extraCutlery: cutlery,
         vegFleetOptIn: vegFleet,
-        needsCutlery: cutlery,
       },
-      {
-        onSuccess: () => {
-          navigation.reset({
-            index: 1,
-            routes: [
-              { name: "Home" },
-              { name: "OrderPlaced", params: { restaurantName, vegFleet } },
-            ],
-          });
-          clearCart();
-        },
-      }
+      { onSuccess: onOrderPlaced, onError: onOrderFailed },
     );
   };
 
@@ -143,29 +223,37 @@ export default function Payment({ navigation, route }) {
           onPress={() => navigation.navigate("Address")}
           className="mx-5 mt-4 flex-row items-center gap-3 rounded-2xl bg-card p-4 shadow-md shadow-black/10"
           accessibilityRole="button"
-          accessibilityLabel={`Delivering to ${selectedAddress?.label}. Change address`}
+          accessibilityLabel={
+            address ? `Delivering to ${address.label}. Change address` : "Add a delivery address"
+          }
         >
           <MapPin size={20} color="#1A1A1A" strokeWidth={2.2} />
 
           <View className="flex-1">
             <Text className="font-jakarta-bold text-[17px] leading-[24px] text-foreground">
-              Delivering to {selectedAddress?.label ?? "your address"}
+              {address ? `Delivering to ${address.label}` : "Add a delivery address"}
             </Text>
 
             <Text
               numberOfLines={2}
               className="font-jakarta text-[15px] leading-[22px] text-muted-foreground"
             >
-              {shortAddress(selectedAddress)}
+              {address ? shortAddress(address) : "An order can't be placed without one"}
             </Text>
           </View>
 
           <ChevronRight size={20} color="#1A1A1A" />
         </Pressable>
 
-        <Text className="mx-5 mt-6 font-jakarta text-[16px] leading-[22px] text-muted-foreground">
-          Total Payable amount
-        </Text>
+        <View className="mx-5 mt-6 flex-row items-baseline justify-between">
+          <Text className="font-jakarta text-[16px] leading-[22px] text-muted-foreground">
+            Total payable amount
+          </Text>
+
+          <Text className="font-jakarta-bold text-[20px] leading-[28px] text-foreground">
+            {formatAmount(toPay)}
+          </Text>
+        </View>
 
         <View className="px-5 pb-2">
           {PAYMENT_GROUPS.map((group) => (
@@ -175,9 +263,12 @@ export default function Payment({ navigation, route }) {
               expanded={!collapsed.includes(group.id)}
               selected={method}
               accent={accent}
-              payLabel={placeOrder.isPending ? "Processing..." : `Pay ${formatAmount(toPay)}`}
+              payLabel={placeOrder.isPending ? "Placing order…" : `Pay ${formatAmount(toPay)}`}
               onToggle={() => toggleGroup(group.id)}
               onSelect={setMethod}
+              // Disabled on the first tap, not just styled as busy: two checkout
+              // calls landing together can both read the same cart and create two
+              // real orders (Gotcha #7).
               onPay={placeOrder.isPending ? undefined : pay}
             />
           ))}

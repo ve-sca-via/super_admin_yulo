@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { CreditCard, Landmark } from "lucide-react-native";
+import { Banknote, CreditCard, Landmark } from "lucide-react-native";
 
 import Text from "@/components/ui/Text";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,13 @@ export default function PaymentBrand({ brand }) {
       return (
         <View className={PLAIN}>
           <Landmark size={24} color="#1A1A1A" strokeWidth={1.8} />
+        </View>
+      );
+
+    case "cod":
+      return (
+        <View className={PLAIN}>
+          <Banknote size={24} color="#1A1A1A" strokeWidth={1.8} />
         </View>
       );
 

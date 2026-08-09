@@ -32,7 +32,9 @@ export default function LocationSetup({ onNext }) {
         return;
       }
 
-      const position = await Location.getCurrentPositionAsync({});
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
       const [place] = await Location.reverseGeocodeAsync({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
@@ -41,7 +43,18 @@ export default function LocationSetup({ onNext }) {
         ? [place.name, place.street, place.city].filter(Boolean).join(", ")
         : "Current location";
 
-      setDeliveryLocation({ label, coords: position.coords });
+      // Only latitude/longitude are kept: the rest of the GeolocationPosition
+      // (accuracy, heading, speed, a timestamp) is a snapshot of one moment and
+      // has no meaning once it's been persisted and reloaded days later.
+      setDeliveryLocation({
+        label,
+        city: place?.city ?? null,
+        pincode: place?.postalCode ?? null,
+        coords: {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        },
+      });
       onNext();
     } catch {
       setError("Couldn't get your location. Try entering it manually.");
@@ -50,6 +63,9 @@ export default function LocationSetup({ onNext }) {
     }
   };
 
+  // There's no server-side geocoding, so a typed address can't be resolved to
+  // coordinates — the feed falls back to the city centre for it. Saying so is
+  // better than silently showing restaurants near somewhere else.
   const handleManualSubmit = () => {
     if (!hasTypedAddress) return;
     setDeliveryLocation({ label: query.trim(), coords: null });

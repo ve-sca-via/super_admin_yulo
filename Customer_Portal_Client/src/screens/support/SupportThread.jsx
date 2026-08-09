@@ -1,5 +1,14 @@
-import { useState, useEffect, useRef } from "react";
-import { ScrollView, View, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
+import { useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from "react-native";
 import { ArrowLeft, Send } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -46,24 +55,27 @@ export default function SupportThread({ navigation, route }) {
       createTicket.mutate(
         { category, description: inputText.trim(), orderId },
         {
-          onSuccess: (newTicket) => {
-            // newTicket contains the created ticket, need to set it to query and switch to it
-            setTicketId(newTicket.data._id || newTicket.data.id);
+          // The response is `{ ticket }` — already unwrapped from the envelope by
+          // the client interceptor, so there's no `.data` to reach through.
+          onSuccess: (response) => {
+            setTicketId(response?.ticket?._id);
             setInputText("");
-          }
-        }
+          },
+          onError: (error) => Alert.alert("Couldn't send your message", error.message),
+        },
       );
     } else {
       replyTicket.mutate(
         { ticketId, text: inputText.trim() },
         {
-          onSuccess: () => setInputText("")
-        }
+          onSuccess: () => setInputText(""),
+          onError: (error) => Alert.alert("Couldn't send your message", error.message),
+        },
       );
     }
   };
 
-  const messages = ticket?.messages || [];
+  const messages = ticket?.messages ?? [];
 
   return (
     <Screen edges={["top"]} style={{ flex: 1 }}>
@@ -115,10 +127,13 @@ export default function SupportThread({ navigation, route }) {
                  </View>
               )}
               {messages.map((msg, idx) => {
-                const isCustomer = msg.sender === "customer";
+                // `sender` is the author's ObjectId; `senderType` is the side.
+                // Comparing `sender` to "customer" was never true, so the
+                // customer's own messages rendered as agent replies.
+                const isCustomer = msg.senderType === "user";
                 return (
                   <View
-                    key={idx}
+                    key={msg._id ?? idx}
                     className={`rounded-2xl px-4 py-3 max-w-[80%] ${
                       isCustomer ? "self-end" : "self-start bg-muted"
                     }`}

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, View } from "react-native";
 import { ArrowLeft, ArrowRight, Heart, Utensils } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,9 +12,10 @@ import DiscardCartDialog from "@/components/cart/DiscardCartDialog";
 import ItemChoiceCard from "@/components/menu/ItemChoiceCard";
 import QuantityStepper from "@/components/menu/QuantityStepper";
 import { cartLineFor } from "@/data/cart";
-import { defaultSelection, findItem, formatPrice, menuFor, totalFor } from "@/data/menu";
+import { defaultSelection, formatPrice, totalFor } from "@/data/menu";
 import { accentFor } from "@/lib/accent";
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { useItemDetail } from "@/hooks/useRestaurantMenu";
 import { useToggleItemFavorite } from "@/hooks/useUser";
 
 // The photo runs edge to edge under the status bar, so the two controls float on
@@ -37,30 +38,55 @@ const BADGE = { tint: "#E8F0FE", ink: "#1A73E8" };
 // Reached as the "Item" route with the storefront that was open and the dish's
 // id, the same pair the "Menu" route travels with.
 export default function ItemDetail({ navigation, route }) {
+  const restaurantId = route?.params?.restaurantId;
   const restaurantName = route?.params?.restaurantName;
-  const menu = menuFor(restaurantName);
-  const item = findItem(menu, route?.params?.itemId);
+  const itemId = route?.params?.itemId;
+
+  // The dish is fetched by id rather than looked up in a seeded menu — the
+  // previous version read `data/menu`'s placeholder catalogue, so every real
+  // dish opened either as a demo item or as "not on the menu any more".
+  const { data: item, isLoading, isError } = useItemDetail(itemId);
 
   const { cart, addToCart, clearCart, vegOnly } = useFeed();
-  const { user } = useCustomerAuth();
+  const { isAuthenticated } = useCustomerAuth();
   const accent = accentFor(vegOnly);
   const insets = useSafeAreaInsets();
   const toggleFavoriteMutation = useToggleItemFavorite();
 
-  const groups = item?.detail?.choices ?? [];
+  // Memoised because it feeds both a `useMemo` and a `useEffect` below — a fresh
+  // array identity every render would re-run the price calculation and re-seed
+  // the selection on each keystroke elsewhere in the tree.
+  const groups = useMemo(
+    () => item?.detail?.choices ?? item?.customisation?.groups ?? [],
+    [item],
+  );
 
-  const [selection, setSelection] = useState(() => defaultSelection(groups));
+  const [selection, setSelection] = useState({});
   const [quantity, setQuantity] = useState(1);
-  const [localSaved, setLocalSaved] = useState(false);
-  
-  const saved = localSaved || item?.isFavorited;
+  const [localSaved, setLocalSaved] = useState(null);
+  const [adding, setAdding] = useState(false);
+
+  // The choices arrive with the item, which lands after the first render — the
+  // page opens on each group's default rather than on nothing selected.
+  useEffect(() => {
+    if (groups.length) setSelection(defaultSelection(groups));
+  }, [groups]);
+
+  const saved = localSaved ?? !!item?.isFavorited;
 
   const handleToggleFavorite = () => {
+    if (!item) return;
     const nextSaved = !saved;
     setLocalSaved(nextSaved);
-    if (user && item) {
-      toggleFavoriteMutation.mutate({ id: item.id || item._id, isFavoriting: nextSaved });
-    }
+
+    if (!isAuthenticated) return;
+
+    toggleFavoriteMutation.mutate(
+      { id: item.id, isFavoriting: nextSaved },
+      // Put the heart back if the server refused it, rather than showing a save
+      // that never happened.
+      { onError: () => setLocalSaved(!nextSaved) },
+    );
   };
 
   // Set only while the discard prompt is up: the dish is already assembled, so
@@ -73,9 +99,19 @@ export default function ItemDetail({ navigation, route }) {
     [item, groups, selection, quantity],
   );
 
+  if (isLoading) {
+    return (
+      <Screen>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color={accent.icon} />
+        </View>
+      </Screen>
+    );
+  }
+
   // A dish the storefront no longer lists — an id from a stale link, or a menu
   // swapped underneath the route — leaves the page with nothing to render.
-  if (!item) {
+  if (isError || !item) {
     return (
       <Screen>
         <View className="flex-1 items-center justify-center px-8">
@@ -91,27 +127,46 @@ export default function ItemDetail({ navigation, route }) {
     );
   }
 
-  const { badge, cuisine, serves, about } = item.detail;
-  const photo = item.detail.image ?? item.image;
-  const cartName = restaurantName ?? menu.name;
+  const badge = item.detail?.badge;
+  const about = item.detail?.about ?? item.description;
+  const photo = item.detail?.image ?? item.image;
 
   const line = () => cartLineFor({ item, quantity, selection });
 
-  // The single-restaurant cart rule holds here the same as on both menus.
+  const addAndOpenCart = async () => {
+    if (adding) return;
+    setAdding(true);
+    try {
+      await addToCart(restaurantName, line());
+      navigation.navigate("Cart");
+    } catch (error) {
+      // A conflict can still arrive here even after the id check below — another
+      // device may have started a different cart since this screen opened.
+      if (error.code === "CART_RESTAURANT_CONFLICT") setConfirming(true);
+      else Alert.alert("Couldn't add this dish", error.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  // The single-restaurant cart rule holds here the same as on both menus —
+  // matched on id, since two storefronts can share a name.
   const pay = () => {
-    if (cart && cart.restaurantName !== cartName) {
+    if (cart && restaurantId && String(cart.restaurantId) !== String(restaurantId)) {
       setConfirming(true);
       return;
     }
-    addToCart(cartName, line());
-    navigation.navigate("Cart");
+    addAndOpenCart();
   };
 
-  const discardCart = () => {
+  const discardCart = async () => {
     setConfirming(false);
-    clearCart();
-    addToCart(cartName, line());
-    navigation.navigate("Cart");
+    try {
+      await clearCart();
+    } catch {
+      // Fall through — the add below will report anything still wrong.
+    }
+    addAndOpenCart();
   };
 
   return (
@@ -187,10 +242,6 @@ export default function ItemDetail({ navigation, route }) {
               {item.name}
             </Text>
 
-            <Text className="mt-1.5 font-jakarta text-[15px] leading-[21px] text-muted-foreground">
-              {[cuisine, serves].filter(Boolean).join(" • ")}
-            </Text>
-
             {about ? (
               <Text className="mt-3 font-jakarta text-[15px] leading-[22px] text-muted-foreground">
                 {about}
@@ -241,15 +292,16 @@ export default function ItemDetail({ navigation, route }) {
         <Button
           onPress={pay}
           size="lg"
+          disabled={adding}
           style={{ backgroundColor: accent.icon }}
           className="h-14 flex-1 shadow-lg shadow-black/20"
-          accessibilityLabel={`Pay ${formatPrice(total)} for ${item.name}`}
+          accessibilityLabel={`Add ${item.name} to cart, ${formatPrice(total)}`}
         >
           <View className="flex-row items-center gap-3">
             <Text className="font-jakarta-bold text-[17px] leading-[24px] text-white">
-              Pay {formatPrice(total)}
+              {adding ? "Adding…" : `Add · ${formatPrice(total)}`}
             </Text>
-            <ArrowRight size={20} color="#FFFFFF" />
+            {adding ? null : <ArrowRight size={20} color="#FFFFFF" />}
           </View>
         </Button>
       </View>

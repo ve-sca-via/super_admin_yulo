@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Image, Pressable, useWindowDimensions, View } from "react-native";
+import { Pressable, useWindowDimensions, View } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import Animated, { FadeInDown, FadeIn, ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing } from "react-native-reanimated";

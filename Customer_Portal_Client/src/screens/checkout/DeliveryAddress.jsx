@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Alert, Pressable, ScrollView, View } from "react-native";
 import { ArrowLeft, Plus } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -34,9 +34,13 @@ export default function DeliveryAddress({ navigation, route }) {
   // leaving checkout returns to the cart instead of stepping back through it.
   const confirm = () => (next ? navigation.replace(next) : navigation.goBack());
 
-  const saveAddress = (address) => {
-    addAddress(address);
+  const saveAddress = async (address) => {
     setAdding(false);
+    try {
+      await addAddress(address);
+    } catch (error) {
+      Alert.alert("Couldn't save that address", error.message);
+    }
   };
 
   return (
@@ -73,15 +77,27 @@ export default function DeliveryAddress({ navigation, route }) {
         </Pressable>
 
         <View className="mt-6 gap-4 px-6">
-          {addresses.map((address) => (
-            <AddressCard
-              key={address.id}
-              address={address}
-              accent={accent}
-              selected={address.id === selectedAddress?.id}
-              onPress={() => selectAddress(address.id)}
-            />
-          ))}
+          {addresses.length ? (
+            addresses.map((address) => (
+              <AddressCard
+                key={address.id}
+                address={address}
+                accent={accent}
+                selected={address.id === selectedAddress?.id}
+                // Choosing an address makes it the default server-side — that's
+                // the one checkout will actually deliver to.
+                onPress={() =>
+                  selectAddress(address.id).catch((error) =>
+                    Alert.alert("Couldn't select that address", error.message),
+                  )
+                }
+              />
+            ))
+          ) : (
+            <Text className="mt-6 px-2 text-center font-jakarta text-[16px] leading-[23px] text-muted-foreground">
+              Add an address so we know where to bring your order.
+            </Text>
+          )}
         </View>
       </ScrollView>
 

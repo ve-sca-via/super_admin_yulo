@@ -1,15 +1,35 @@
 {
   "expo": {
-    "name": "Customer-Portal",
+    "name": "Yulo Stores",
     "slug": "Customer-Portal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "yulostores",
+    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.yulostores.customer",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.yulostores.customer",
+      "versionCode": 1,
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "INTERNET"
+      ],
+      "blockedPermissions": [
+        "ACCESS_BACKGROUND_LOCATION",
+        "RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#FFF0E6",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -23,11 +43,22 @@
     },
     "plugins": [
       "expo-font",
-      "expo-secure-store",
+      "expo-system-ui",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#FF5E00"
+        }
+      ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Yulo Stores uses your location to show restaurants that deliver to you."
+          "locationWhenInUsePermission": "Yulo Stores uses your location to show restaurants that deliver to you.",
+          "isAndroidBackgroundLocationEnabled": false,
+          "isIosBackgroundLocationEnabled": false
         }
       ]
     ]

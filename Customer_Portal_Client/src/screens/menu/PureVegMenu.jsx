@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { Alert, ScrollView, View } from "react-native";
 import { List } from "lucide-react-native";
 
 import { useFeed } from "@/context/FeedContext";
@@ -35,7 +35,7 @@ const ACTIVE_LINE = 96;
 // grid `RestaurantMenu` draws. Both are reached through the same "Menu" route;
 // the menu itself names which layout serves it (see `data/menu`).
 export default function PureVegMenu({ navigation, menu }) {
-  const { cart, addToCart, clearCart, favourites, toggleFavourite, vegOnly } = useFeed();
+  const { cart, addToCart, clearCart, isFavourite, toggleFavourite, vegOnly } = useFeed();
 
   // App-wide veg mode still repaints the accents here, the same as everywhere
   // else. It has nothing to narrow — every dish on this storefront is veg.
@@ -96,20 +96,29 @@ export default function PureVegMenu({ navigation, menu }) {
   // The single-restaurant cart rule holds here too: a dish from a second
   // storefront has to empty the first cart before it can be added.
   const addItem = (line) => {
-    if (cart && cart.restaurantName !== menu.name) {
+    // Matched on id — two storefronts can share a name, and the cart knows its
+    // restaurant only by id.
+    if (cart && String(cart.restaurantId) !== String(menu.id)) {
       setPendingItem(line);
       return;
     }
-    addToCart(menu.name, line);
+    addToCart(menu.name, line).catch((error) => {
+      if (error.code === "CART_RESTAURANT_CONFLICT") setPendingItem(line);
+      else Alert.alert("Couldn't add this dish", error.message);
+    });
   };
 
   // The dish is already assembled by the time the prompt goes up, so agreeing to
   // lose the other cart adds exactly what was pending rather than starting over.
-  const discardCart = () => {
+  const discardCart = async () => {
     const line = pendingItem;
     setPendingItem(null);
-    clearCart();
-    addToCart(menu.name, line);
+    try {
+      await clearCart();
+      await addToCart(menu.name, line);
+    } catch (error) {
+      Alert.alert("Couldn't add this dish", error.message);
+    }
   };
 
   // What Add does depends on how much the dish has to be told: a composed plate
@@ -117,7 +126,11 @@ export default function PureVegMenu({ navigation, menu }) {
   // with neither goes straight into the cart.
   const startAdd = (item) => {
     if (item.detail) {
-      navigation.navigate("Item", { restaurantName: menu.name, itemId: item.id });
+      navigation.navigate("Item", {
+        restaurantId: menu.id,
+        restaurantName: menu.name,
+        itemId: item.id,
+      });
       return;
     }
 
@@ -163,9 +176,11 @@ export default function PureVegMenu({ navigation, menu }) {
         <CompactMenuHeader
           menu={menu}
           accent={accent}
-          favourite={!!favourites[menu.id]}
+          favourite={isFavourite(menu.id, menu.isFavorited)}
           ratingTone="soft"
-          onToggleFavourite={() => toggleFavourite(menu.id)}
+          onToggleFavourite={() =>
+            toggleFavourite(menu.id, isFavourite(menu.id, menu.isFavorited))
+          }
         />
 
         {menu.deliveryNote ? (

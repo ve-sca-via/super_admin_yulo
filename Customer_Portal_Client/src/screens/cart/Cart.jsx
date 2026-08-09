@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { ArrowLeft, ShoppingBag } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,7 +20,7 @@ const SCROLL_PADDING = 120;
 // which is the next screen. Veg mode repaints the accents green here the same as
 // everywhere else, which is the second frame in the design.
 export default function Cart({ navigation }) {
-  const { cart, bill, vegOnly } = useFeed();
+  const { cart, bill, cartLoading, vegOnly } = useFeed();
   const accent = accentFor(vegOnly);
   const insets = useSafeAreaInsets();
 
@@ -40,6 +40,19 @@ export default function Cart({ navigation }) {
       </Text>
     </View>
   );
+
+  // The cart lives server-side, so it isn't known on the first frame. Without
+  // this the screen claims to be empty for a moment before the real order lands.
+  if (cartLoading) {
+    return (
+      <Screen edges={["top", "bottom"]}>
+        {header}
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color={accent.icon} />
+        </View>
+      </Screen>
+    );
+  }
 
   // Nothing ordered yet — the bill, the line list and the checkout bar all have
   // nothing to describe, so the screen offers the way back to the food instead.
@@ -113,7 +126,7 @@ export default function Cart({ navigation }) {
                     {line.name}
                   </Text>
 
-                  {line.notes.length ? (
+                  {line.notes?.length ? (
                     <Text
                       numberOfLines={1}
                       className="mt-0.5 font-jakarta text-[13px] leading-[18px] text-muted-foreground"
@@ -132,7 +145,14 @@ export default function Cart({ navigation }) {
         </Card>
 
         <Pressable
-          onPress={() => navigation.navigate("Menu", { restaurantName: cart.restaurantName })}
+          onPress={() =>
+            navigation.navigate("Menu", {
+              // Without the id the menu screen has nothing to fetch and sits on a
+              // spinner forever.
+              restaurantId: cart.restaurantId,
+              restaurantName: cart.restaurantName,
+            })
+          }
           hitSlop={8}
           className="self-start px-6 py-4"
           accessibilityRole="button"

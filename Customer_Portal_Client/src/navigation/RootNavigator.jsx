@@ -36,128 +36,162 @@ import SupportThread from "@/screens/support/SupportThread";
 const Stack = createNativeStackNavigator();
 
 export default function RootNavigator() {
-  const { completeOnboarding } = useCustomerAuth();
+  const {
+    completeOnboarding,
+    isAuthenticated,
+    hydrated,
+    sessionReady,
+    deliveryLocation,
+    addresses,
+  } = useCustomerAuth();
+
+  // Two separate stacks rather than one flat list. Before, every screen was
+  // registered unconditionally, so a signed-in customer could walk back into the
+  // login screen and a signed-out one could be navigated onto Checkout — and
+  // signing out left the account screens sitting in the back stack. Swapping the
+  // whole navigator on `isAuthenticated` makes that unreachable rather than
+  // merely discouraged, and unmounts the previous customer's screens outright.
+  const signedIn = isAuthenticated && hydrated && sessionReady;
+
+  // A customer who has just verified their number has nowhere to deliver to yet,
+  // so the signed-in stack opens on location setup instead of a feed of
+  // restaurants picked by a fallback coordinate they never chose. Everyone else
+  // lands on the feed.
+  const needsLocation = signedIn && !deliveryLocation && addresses.length === 0;
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Splash" component={Splash} />
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={signedIn ? (needsLocation ? "Location" : "Home") : "Splash"}
+    >
+      {!signedIn ? (
+        <Stack.Group>
+          <Stack.Screen name="Splash" component={Splash} />
 
-      <Stack.Screen name="Onboarding1">
-        {({ navigation }) => <OnboardingStep1 onNext={() => navigation.navigate("Onboarding2")} />}
-      </Stack.Screen>
+          <Stack.Screen name="Onboarding1">
+            {({ navigation }) => <OnboardingStep1 onNext={() => navigation.navigate("Onboarding2")} />}
+          </Stack.Screen>
 
-      <Stack.Screen name="Onboarding2">
-        {({ navigation }) => <OnboardingStep2 onNext={() => navigation.navigate("Onboarding3")} />}
-      </Stack.Screen>
+          <Stack.Screen name="Onboarding2">
+            {({ navigation }) => <OnboardingStep2 onNext={() => navigation.navigate("Onboarding3")} />}
+          </Stack.Screen>
 
-      <Stack.Screen name="Onboarding3">
-        {({ navigation }) => (
-          <OnboardingStep3
-            onNext={() => {
-              completeOnboarding();
-              navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-            }}
-          />
-        )}
-      </Stack.Screen>
+          <Stack.Screen name="Onboarding3">
+            {({ navigation }) => (
+              <OnboardingStep3
+                onNext={() => {
+                  completeOnboarding();
+                  navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+                }}
+              />
+            )}
+          </Stack.Screen>
 
-      <Stack.Screen name="Login">
-        {({ navigation }) => <PhoneLogin onNext={() => navigation.navigate("Otp")} />}
-      </Stack.Screen>
+          <Stack.Screen name="Login">
+            {({ navigation }) => <PhoneLogin onNext={() => navigation.navigate("Otp")} />}
+          </Stack.Screen>
 
-      <Stack.Screen name="Otp">
-        {({ navigation }) => <OtpVerification onNext={() => navigation.navigate("Location")} />}
-      </Stack.Screen>
+          {/* Verifying flips `isAuthenticated`, which swaps this whole group for
+              the one below — there's nothing to navigate to on success. */}
+          <Stack.Screen name="Otp">
+            {() => <OtpVerification onNext={() => {}} />}
+          </Stack.Screen>
+        </Stack.Group>
+      ) : (
+        <Stack.Group>
+          <Stack.Screen name="Home" component={Home} />
 
-      <Stack.Screen name="Location">
-        {({ navigation }) => (
-          <LocationSetup onNext={() => navigation.reset({ index: 0, routes: [{ name: "Home" }] })} />
-        )}
-      </Stack.Screen>
+          {/* Reachable after signing in as well as before it: the feed's address
+              chip opens it to change where the order goes. */}
+          <Stack.Screen name="Location">
+            {({ navigation }) => (
+              <LocationSetup
+                onNext={() => navigation.reset({ index: 0, routes: [{ name: "Home" }] })}
+              />
+            )}
+          </Stack.Screen>
 
-      <Stack.Screen name="Home" component={Home} />
+          <Stack.Screen name="Search" component={Search} options={{ animation: "fade" }} />
 
-      <Stack.Screen name="Search" component={Search} options={{ animation: "fade" }} />
+          <Stack.Screen name="SearchResults" component={SearchResults} options={{ animation: "fade" }} />
 
-      <Stack.Screen name="SearchResults" component={SearchResults} options={{ animation: "fade" }} />
+          {/* One route, two layouts — the storefront's menu picks which. */}
+          <Stack.Screen name="Menu" component={MenuRoute} />
 
-      {/* One route, two layouts — the storefront's menu picks which. */}
-      <Stack.Screen name="Menu" component={MenuRoute} />
+          {/* A dish composed of several choice groups gets its own page; the
+              lighter ones are customised in a sheet over the menu itself. */}
+          <Stack.Screen name="Item" component={ItemDetail} />
 
-      {/* A dish composed of several choice groups gets its own page; the
-          lighter ones are customised in a sheet over the menu itself. */}
-      <Stack.Screen name="Item" component={ItemDetail} />
+          {/* The checkout flow, in the order it's walked: the cart is reviewed, the
+              address confirmed, and the order paid for. Address is reached twice —
+              on the way through, and again from checkout to change it — which is
+              why it carries a `next` param rather than always moving forward. */}
+          <Stack.Screen name="Cart" component={Cart} />
 
-      {/* The checkout flow, in the order it's walked: the cart is reviewed, the
-          address confirmed, and the order paid for. Address is reached twice —
-          on the way through, and again from checkout to change it — which is
-          why it carries a `next` param rather than always moving forward. */}
-      <Stack.Screen name="Cart" component={Cart} />
+          <Stack.Screen name="Address" component={DeliveryAddress} />
 
-      <Stack.Screen name="Address" component={DeliveryAddress} />
+          <Stack.Screen name="Checkout" component={Checkout} />
 
-      <Stack.Screen name="Checkout" component={Checkout} />
+          <Stack.Screen name="Payment" component={Payment} />
 
-      <Stack.Screen name="Payment" component={Payment} />
+          {/* Past the point of paying: Payment resets the stack to the feed plus
+              this, rather than pushing, so going back from a confirmation can't land
+              on a checkout for a cart that has already been charged and emptied. */}
+          <Stack.Screen name="OrderPlaced" component={OrderPlaced} />
 
-      {/* Past the point of paying: Payment resets the stack to the feed plus
-          this, rather than pushing, so going back from a confirmation can't land
-          on a checkout for a cart that has already been charged and emptied. */}
-      <Stack.Screen name="OrderPlaced" component={OrderPlaced} />
+          {/* Only reached when the veg-only fleet was asked for: the wait for a
+              partner carrying the separate bag, and the choice when there isn't
+              one. An ordinary order goes straight to tracking. */}
+          <Stack.Screen name="FleetSearch" component={FleetSearch} />
 
-      {/* Only reached when the veg-only fleet was asked for: the wait for a
-          partner carrying the separate bag, and the choice when there isn't
-          one. An ordinary order goes straight to tracking. */}
-      <Stack.Screen name="FleetSearch" component={FleetSearch} />
+          {/* Tracking, in its two forms: the map-led screen an ordinary order lands
+              on, and the same order without a live position to draw, which is where
+              a veg-only fleet order starts. Kept apart from "Orders" below — that
+              tab is the history of everything already delivered, and an order still
+              on the road doesn't belong in it. */}
+          <Stack.Screen name="Tracking" component={OrderTracking} />
 
-      {/* Tracking, in its two forms: the map-led screen an ordinary order lands
-          on, and the same order without a live position to draw, which is where
-          a veg-only fleet order starts. Kept apart from "Orders" below — that
-          tab is the history of everything already delivered, and an order still
-          on the road doesn't belong in it. */}
-      <Stack.Screen name="Tracking" component={OrderTracking} />
+          <Stack.Screen name="FleetTracking" component={FleetOrderTracking} />
 
-      <Stack.Screen name="FleetTracking" component={FleetOrderTracking} />
+          {/* Everything already placed, and one of them opened. */}
+          <Stack.Screen name="Orders" component={OrderHistory} />
 
-      {/* Everything already delivered, and one of them opened. Kept apart from
-          the tracking screens above: those are the order still on the road. */}
-      <Stack.Screen name="Orders" component={OrderHistory} />
+          <Stack.Screen name="OrderDetails" component={OrderDetails} />
 
-      <Stack.Screen name="OrderDetails" component={OrderDetails} />
+          {/* The account section. Profile is its hub and every other screen here is
+              one of its rows, which is why they're all reachable by name rather than
+              nested — the feed's avatar and the tracking screens link straight in. */}
+          <Stack.Screen name="Profile" component={Profile} />
 
-      {/* The account section. Profile is its hub and every other screen here is
-          one of its rows, which is why they're all reachable by name rather than
-          nested — the feed's avatar and the tracking screens link straight in. */}
-      <Stack.Screen name="Profile" component={Profile} />
+          <Stack.Screen name="Favourites" component={Favourites} />
 
-      <Stack.Screen name="Favourites" component={Favourites} />
+          <Stack.Screen name="SavedAddresses" component={SavedAddresses} />
 
-      <Stack.Screen name="SavedAddresses" component={SavedAddresses} />
+          <Stack.Screen name="Settings" component={Settings} />
 
-      <Stack.Screen name="Settings" component={Settings} />
+          <Stack.Screen name="VegFleetPreference" component={VegFleetPreference} />
 
-      <Stack.Screen name="VegFleetPreference" component={VegFleetPreference} />
+          <Stack.Screen name="Notifications" component={NotificationPreferences} />
 
-      <Stack.Screen name="Notifications" component={NotificationPreferences} />
+          <Stack.Screen name="Help" component={HelpSupport} />
 
-      <Stack.Screen name="Help" component={HelpSupport} />
+          {/* Where the tracking screens send a customer who needs a person. */}
+          <Stack.Screen name="Support" component={SupportThread} />
 
-      {/* Where the tracking screens send a customer who needs a person: the chat
-          thread with the partner, and the help link under a live order. */}
-      <Stack.Screen name="Support" component={SupportThread} />
-
-      {/* The remaining rows on the settings and profile lists name screens that
-          haven't been built. One parameterised placeholder rather than a route
-          each: they differ only by title, and a row that dead-ends is worse than
-          one that says which flow it's waiting on. */}
-      <Stack.Screen name="Placeholder">
-        {({ route }) => (
-          <PlaceholderScreen
-            title={route.params?.title ?? "Coming soon"}
-            flow={route.params?.flow ?? "a later pass"}
-          />
-        )}
-      </Stack.Screen>
+          {/* The remaining rows on the settings and profile lists name screens that
+              haven't been built. One parameterised placeholder rather than a route
+              each: they differ only by title, and a row that dead-ends is worse than
+              one that says which flow it's waiting on. */}
+          <Stack.Screen name="Placeholder">
+            {({ route }) => (
+              <PlaceholderScreen
+                title={route.params?.title ?? "Coming soon"}
+                flow={route.params?.flow ?? "a later pass"}
+              />
+            )}
+          </Stack.Screen>
+        </Stack.Group>
+      )}
     </Stack.Navigator>
   );
 }

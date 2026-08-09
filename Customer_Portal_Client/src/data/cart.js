@@ -53,6 +53,13 @@ export function cartLineFor({ item, quantity = 1, selection, chosenAddOns = [] }
       chosenExtras.map((addOn) => addOn.id),
     ),
     itemId: item.id,
+    // What actually goes to `POST /cart/items`. Without this the server received
+    // an add with no options at all, so a customised dish was priced and cooked
+    // as its plain base — the choices the customer made never left the device.
+    // Only `optionId` is sent; the server works out which group each belongs to.
+    selectedOptions: [...chosenOptions, ...chosenExtras].map((option) => ({
+      optionId: option.id,
+    })),
     name: item.name,
     // What the dish was ordered as, printed under its name on checkout. A dish
     // with nothing to answer falls back to its menu description.

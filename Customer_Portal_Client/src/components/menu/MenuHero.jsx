@@ -1,5 +1,5 @@
 import { Image, Pressable, TextInput, View } from "react-native";
-import { Search, Share2, X } from "lucide-react-native";
+import { Search, Share2, Utensils, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BackButton from "@/components/customer/BackButton";
@@ -27,8 +27,16 @@ export default function MenuHero({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={{ height: HERO_HEIGHT }} className="w-full">
-      <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+    <View style={{ height: HERO_HEIGHT, backgroundColor: accent.tint }} className="w-full">
+      {/* A storefront with no cover photo is normal — the band keeps the accent
+          wash rather than showing 238px of nothing behind the controls. */}
+      {image ? (
+        <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+      ) : (
+        <View className="h-full w-full items-center justify-center">
+          <Utensils size={48} color={accent.icon} strokeWidth={1.4} />
+        </View>
+      )}
 
       <View
         style={{ paddingTop: insets.top + 8 }}

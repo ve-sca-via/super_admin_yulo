@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 
 import { useFeed } from "@/context/FeedContext";
 import { useRecentSearches, usePopularSearches, useTypeahead, useAddRecentSearch } from "@/hooks/useSearch";
@@ -12,49 +12,19 @@ import PopularSearchGrid from "@/components/search/PopularSearchGrid";
 import RecentSearchList from "@/components/search/RecentSearchList";
 import SearchSuggestionList from "@/components/search/SearchSuggestionList";
 import SearchTopBar from "@/components/search/SearchTopBar";
-import { ActivityIndicator } from "react-native";
 
+// Stand-ins for a restaurant or dish the API returned without a thumbnail.
 const cartRestaurant = require("@/assets/home/cart-restaurant-avatar.png");
 const dishBiryani = require("@/assets/home/dish-biryani.png");
 const categoryBiryani = require("@/assets/home/category-biryani.png");
-const categoryButterChicken = require("@/assets/home/category-butter-chicken.png");
-const categoryVegThali = require("@/assets/home/category-veg-thali.png");
-const categoryPizza = require("@/assets/home/category-pizza.png");
 
 // The design lists five suggestions before the card stops growing.
 const MAX_SUGGESTIONS = 5;
 
-// Placeholder catalogue matching the Figma frames, filtered client-side. Swap
-// for a `src/api/client` autocomplete query once the search endpoint lands.
-const DISH_CATALOGUE = [
-  { id: "gosht", label: "Gosht", type: "Dish", image: dishBiryani },
-  { id: "ghee-laddu", label: "Ghee Laddu", type: "Dish", image: categoryButterChicken },
-  { id: "ghee-sweets", label: "Ghee Sweets", type: "Dish", image: categoryVegThali },
-  { id: "gatte", label: "Gatte", type: "Dish", image: categoryPizza },
-  { id: "ghar-ka-khana", label: "Ghar Ka Khana", type: "Dish", image: dishBiryani, offer: true },
-  { id: "biryani", label: "Biryani", type: "Dish", image: categoryBiryani },
-  { id: "butter-chicken", label: "Butter Chicken", type: "Dish", image: categoryButterChicken },
-  { id: "paneer-tikka", label: "Paneer Tikka", type: "Dish", image: categoryButterChicken },
-  { id: "pizza", label: "Pizza", type: "Dish", image: categoryPizza },
-  { id: "veg-thali", label: "Veg Thali", type: "Dish", image: categoryVegThali },
-];
-
-// `vegLabel` swaps a tile's copy instead of dropping it, so the grid keeps its
-// three-column shape when veg mode is on — that's how frames 09 and 10 differ.
-const POPULAR_SEARCHES = [
-  { id: "biryani", label: "Biryani", image: categoryBiryani },
-  { id: "chicken", label: "Chicken", vegLabel: "Paneer", image: categoryButterChicken },
-  { id: "north-indian", label: "North Indian", image: categoryVegThali },
-  { id: "veg-meal", label: "Veg meal" },
-  { id: "pizza", label: "Pizza", image: categoryPizza },
-  { id: "sandwich", label: "Sandwich" },
-  { id: "paneer", label: "Paneer" },
-  { id: "dosa", label: "Dosa" },
-  { id: "noodles", label: "Noodles" },
-  { id: "rolls", label: "Rolls" },
-  { id: "thali", label: "Thali", image: dishBiryani },
-  { id: "cakes", label: "Cakes" },
-];
+// The seeded dish catalogue and popular-search grid that used to live here are
+// gone — both are served by `/search/typeahead` and `/search/popular` now. They
+// were still holding three multi-megabyte tile images in the bundle after the
+// screen stopped rendering them.
 
 function Heading({ children, className }) {
   return (
@@ -65,39 +35,61 @@ function Heading({ children, className }) {
 }
 
 export default function Search({ navigation }) {
-  const { cart, clearCart, vegOnly } = useFeed();
+  const { cart, vegOnly } = useFeed();
 
   const [query, setQuery] = useState("");
+  // Hides the summary bar without throwing the order away.
+  const [cartBarDismissed, setCartBarDismissed] = useState(false);
 
   const trimmed = query.trim();
   const searching = trimmed.length > 0;
 
-  const { data: recentSearchesData } = useRecentSearches();
-  const { data: popularSearchesData } = usePopularSearches(vegOnly);
-  const { data: typeaheadData, isLoading: isLoadingTypeahead } = useTypeahead(trimmed);
+  // These arrive already unwrapped from their `{ recent }` / `{ popular }` /
+  // `{ results }` envelopes — see the hooks' `select`.
+  const { data: recentSearches = [] } = useRecentSearches();
+  const { data: popularSearches = [] } = usePopularSearches(vegOnly);
+  const { data: typeaheadResults = [], isLoading: isLoadingTypeahead } = useTypeahead(trimmed);
   const addRecentSearch = useAddRecentSearch();
 
-  const suggestions = useMemo(() => {
-    if (!typeaheadData?.results) return [];
-    return typeaheadData.results.map(res => ({
-      id: res.id || res._id,
-      label: res.name,
-      type: res.type === "restaurant" ? "Restaurant" : "Dish",
-      image: res.thumbnailUrl ? { uri: res.thumbnailUrl } : (res.type === "restaurant" ? cartRestaurant : dishBiryani),
-      offer: false,
-    })).slice(0, MAX_SUGGESTIONS);
-  }, [typeaheadData]);
+  const suggestions = useMemo(
+    () =>
+      typeaheadResults
+        .map((result) => ({
+          id: result.id,
+          label: result.name,
+          type: result.type === "restaurant" ? "Restaurant" : "Dish",
+          // Typeahead is deliberately not veg-filtered — `foodType` is rendered
+          // as a dot rather than the row being hidden.
+          veg: result.foodType ? result.foodType === "veg" : null,
+          image: result.thumbnailUrl
+            ? { uri: result.thumbnailUrl }
+            : result.type === "restaurant"
+              ? cartRestaurant
+              : dishBiryani,
+          offer: false,
+        }))
+        .slice(0, MAX_SUGGESTIONS),
+    [typeaheadResults],
+  );
 
-  const popular = useMemo(() => {
-    if (!popularSearchesData) return [];
-    return popularSearchesData.map(item => ({
-      id: item._id || item.query, // Fallback if API gives strings
-      label: item.query || item,
-      image: categoryBiryani // Add fallback image if none provided by API
-    }));
-  }, [popularSearchesData]);
+  // The list renders plain strings and keys off them; the endpoint returns
+  // SearchHistory documents, so the terms are pulled out here. Passing the raw
+  // documents through rendered an object as a React key and blanked the rows.
+  const recentTerms = useMemo(
+    () => [...new Set(recentSearches.map((entry) => entry.query).filter(Boolean))],
+    [recentSearches],
+  );
 
-  const recentSearches = recentSearchesData || [];
+  // Popular searches are plain `{ query }` objects — there's no id and no image.
+  const popular = useMemo(
+    () =>
+      popularSearches.map((item) => ({
+        id: item.query,
+        label: item.query,
+        image: categoryBiryani,
+      })),
+    [popularSearches],
+  );
 
   const submitSearch = (term) => {
     const value = term.trim();
@@ -147,16 +139,20 @@ export default function Search({ navigation }) {
           </View>
         ) : (
           <>
-            <Heading className="mt-8">Recent searches</Heading>
-            <View className="mt-3">
-              <RecentSearchList
-                items={recentSearches}
-                onSelect={(term) => {
-                  setQuery(term);
-                  submitSearch(term);
-                }}
-              />
-            </View>
+            {recentTerms.length ? (
+              <>
+                <Heading className="mt-8">Recent searches</Heading>
+                <View className="mt-3">
+                  <RecentSearchList
+                    items={recentTerms}
+                    onSelect={(term) => {
+                      setQuery(term);
+                      submitSearch(term);
+                    }}
+                  />
+                </View>
+              </>
+            ) : null}
 
             <Heading className="mt-8">Popular right now</Heading>
             <View className="mt-4">
@@ -173,16 +169,21 @@ export default function Search({ navigation }) {
       </ScrollView>
 
       {/* Hidden while suggestions are up — that's where the keyboard sits. */}
-      {cart && !searching ? (
+      {cart && !searching && !cartBarDismissed ? (
         <View className="absolute inset-x-[7px] bottom-2">
           <StickyCartBar
             restaurantName={cart.restaurantName}
             restaurantImage={cartRestaurant}
             itemCount={cart.itemCount}
             vegOnly={vegOnly}
-            onViewMenu={() => navigation?.navigate("Menu", { restaurantName: cart.restaurantName })}
+            onViewMenu={() =>
+              navigation?.navigate("Menu", {
+                restaurantId: cart.restaurantId,
+                restaurantName: cart.restaurantName,
+              })
+            }
             onViewCart={() => navigation?.navigate("Cart")}
-            onDismiss={clearCart}
+            onDismiss={() => setCartBarDismissed(true)}
           />
         </View>
       ) : null}

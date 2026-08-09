@@ -1,4 +1,4 @@
-import { Image, Pressable, ScrollView, View } from "react-native";
+import { Image, Pressable, ScrollView } from "react-native";
 
 import Text from "@/components/ui/Text";
 

@@ -12,9 +12,13 @@ const CARD_WIDTH = 250;
 const ANCHOR_GAP = 8;
 const SCREEN_EDGE = 12;
 
+// These are the values the API stores and filters on, not display slugs — the
+// preferences endpoint validates against this exact enum, and the home feed only
+// narrows to pure-veg storefronts when it sees `pure_veg_only`. Anything else is
+// rejected on save and silently ignored on the feed.
 export const VEG_SCOPES = {
-  ALL: "all",
-  PURE_VEG: "pure-veg",
+  ALL: "all_restaurants",
+  PURE_VEG: "pure_veg_only",
 };
 
 const OPTIONS = [
