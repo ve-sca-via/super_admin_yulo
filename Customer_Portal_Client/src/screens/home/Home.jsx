@@ -1,15 +1,18 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, View } from "react-native";
+import { Alert, Image, RefreshControl, ScrollView, View } from "react-native";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
 import { useFeed } from "@/context/FeedContext";
 import { useHomeFeed } from "@/hooks/useHomeFeed";
+import useResponsive from "@/hooks/useResponsive";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import DiscardCartDialog from "@/components/cart/DiscardCartDialog";
 import CategorySwitcher from "@/components/home/CategorySwitcher";
 import DishCategoryRow from "@/components/home/DishCategoryRow";
 import HomeBottomNav from "@/components/home/HomeBottomNav";
+import HomeFeedSkeleton from "@/components/home/HomeFeedSkeleton";
 import HomeHeader from "@/components/home/HomeHeader";
 import HomeSearchBar from "@/components/home/HomeSearchBar";
 import RestaurantCardLarge from "@/components/home/RestaurantCardLarge";
@@ -18,6 +21,7 @@ import SectionHeading from "@/components/home/SectionHeading";
 import StickyCartBar from "@/components/home/StickyCartBar";
 import VegModeBanner from "@/components/home/VegModeBanner";
 import VegModePopover from "@/components/home/VegModePopover";
+import { enter } from "@/lib/motion";
 import { toRestaurantCard } from "@/lib/restaurant";
 
 const goldBackdrop = require("@/assets/home/promo-gold-backdrop.png");
@@ -34,25 +38,29 @@ const BACKDROP_HEIGHT = 381;
 const BANNER_HEIGHT = 167;
 
 function RestaurantRow({ data, ratingTone, onSelect }) {
+  const { size, gutter } = useResponsive();
+
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ gap: 13, paddingHorizontal: 24 }}
+      contentContainerStyle={{ gap: size(13), paddingHorizontal: gutter }}
     >
-      {data.map((restaurant) => (
-        <RestaurantCardSmall
-          key={restaurant.id}
-          restaurant={restaurant}
-          ratingTone={ratingTone}
-          onPress={() => onSelect?.(restaurant)}
-        />
+      {data.map((restaurant, index) => (
+        <Animated.View key={restaurant.id} entering={enter(FadeIn, { index })}>
+          <RestaurantCardSmall
+            restaurant={restaurant}
+            ratingTone={ratingTone}
+            onPress={() => onSelect?.(restaurant)}
+          />
+        </Animated.View>
       ))}
     </ScrollView>
   );
 }
 
 export default function Home({ navigation }) {
+  const { gutter } = useResponsive();
   const { deliveryLocation } = useCustomerAuth();
   // Veg mode, the cart and the favourite hearts are shared with the search
   // screens, so they live in FeedContext rather than here — see its header.
@@ -185,11 +193,11 @@ export default function Home({ navigation }) {
             onPressProfile={() => navigation?.navigate("Profile")}
           />
 
-          <View className="mt-3 px-6">
+          <View style={{ paddingHorizontal: gutter }} className="mt-3">
             <CategorySwitcher value={category} onChange={setCategory} />
           </View>
 
-          <View className="mt-3 px-6">
+          <View style={{ paddingHorizontal: gutter }} className="mt-3">
             <HomeSearchBar
               vegOnly={vegOnly}
               onPressVeg={openVegPopover}
@@ -205,24 +213,29 @@ export default function Home({ navigation }) {
         </View>
 
         {vegOnly ? (
-          <View className="mt-4 px-6">
+          <Animated.View
+            entering={enter(FadeInDown)}
+            style={{ paddingHorizontal: gutter }}
+            className="mt-4"
+          >
             <VegModeBanner />
-          </View>
+          </Animated.View>
         ) : null}
 
         {isLoading ? (
-          <View className="mt-20 items-center justify-center">
-            <ActivityIndicator size="large" color="#FF5E00" />
-          </View>
+          <HomeFeedSkeleton />
         ) : isError ? (
-          <View className="mt-20 items-center justify-center gap-2 px-10">
+          <Animated.View
+            entering={enter(FadeIn)}
+            className="mt-20 items-center justify-center gap-2 px-10"
+          >
             <Text className="text-center font-jakarta-bold text-[17px] leading-[24px] text-foreground">
               Couldn't load restaurants
             </Text>
             <Text className="text-center font-jakarta text-[14px] leading-[20px] text-muted-foreground">
               Check your connection and pull down to try again.
             </Text>
-          </View>
+          </Animated.View>
         ) : (
           <>
             {dishCategories.length > 0 && (
@@ -263,24 +276,32 @@ export default function Home({ navigation }) {
 
             <SectionHeading className="ml-[31px] mt-6">Restaurants near you</SectionHeading>
             {nearbyRestaurants.length ? (
-              <View className="mt-1.5 gap-4 px-6">
-                {nearbyRestaurants.map((restaurant) => {
+              <View style={{ paddingHorizontal: gutter }} className="mt-1.5 gap-4">
+                {nearbyRestaurants.map((restaurant, index) => {
                   const favourite = isFavourite(restaurant.id, restaurant.isFavorited);
 
                   return (
-                    <RestaurantCardLarge
-                      key={restaurant.id}
-                      restaurant={restaurant}
-                      favourite={favourite}
-                      ratingTone={ratingTone}
-                      onToggleFavourite={() => toggleFavourite(restaurant.id, favourite)}
-                      onPress={() => openRestaurant(restaurant)}
-                    />
+                    // The nearby list is the one part of the feed a customer
+                    // actually reads down, so its cards rise in sequence. The
+                    // stagger caps a few rows in — past that they arrive
+                    // together rather than making a long list feel slow.
+                    <Animated.View key={restaurant.id} entering={enter(FadeInDown, { index })}>
+                      <RestaurantCardLarge
+                        restaurant={restaurant}
+                        favourite={favourite}
+                        ratingTone={ratingTone}
+                        onToggleFavourite={() => toggleFavourite(restaurant.id, favourite)}
+                        onPress={() => openRestaurant(restaurant)}
+                      />
+                    </Animated.View>
                   );
                 })}
               </View>
             ) : (
-              <Text className="mt-3 px-6 font-jakarta text-[14px] leading-[20px] text-muted-foreground">
+              <Text
+                style={{ paddingHorizontal: gutter }}
+                className="mt-3 font-jakarta text-[14px] leading-[20px] text-muted-foreground"
+              >
                 No restaurants deliver to this address yet. Try another location.
               </Text>
             )}
@@ -305,18 +326,20 @@ export default function Home({ navigation }) {
         onDiscard={discardCart}
       />
 
+      {/* The bar positions itself rather than sitting inside a wrapper: it owns
+          its slide-out, and an exiting animation is skipped if the node that
+          unmounts is a plain parent above it. */}
       {cart && !cartBarDismissed ? (
-        <View className="absolute inset-x-[7px] bottom-[78px]">
-          <StickyCartBar
-            restaurantName={cart.restaurantName}
-            restaurantImage={cartRestaurant}
-            itemCount={cart.itemCount}
-            vegOnly={vegOnly}
-            onViewMenu={() => openMenu({ id: cart.restaurantId, name: cart.restaurantName })}
-            onViewCart={() => navigation?.navigate("Cart")}
-            onDismiss={() => setCartBarDismissed(true)}
-          />
-        </View>
+        <StickyCartBar
+          className="absolute inset-x-[7px] bottom-[78px]"
+          restaurantName={cart.restaurantName}
+          restaurantImage={cartRestaurant}
+          itemCount={cart.itemCount}
+          vegOnly={vegOnly}
+          onViewMenu={() => openMenu({ id: cart.restaurantId, name: cart.restaurantName })}
+          onViewCart={() => navigation?.navigate("Cart")}
+          onDismiss={() => setCartBarDismissed(true)}
+        />
       ) : null}
 
       <View className="absolute inset-x-4 bottom-2">

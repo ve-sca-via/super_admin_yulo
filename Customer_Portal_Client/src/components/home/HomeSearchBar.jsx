@@ -1,11 +1,62 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { Mic, Search } from "lucide-react-native";
+import Animated, {
+  interpolateColor,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
+import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
+import { DURATION, EASE, PRESS_SCALE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 const PLACEHOLDER = "Search restaurants, dishes, cuisines";
+
+// The 36x20 switch drawn at the design's 0.75 scale: a 27pt track with a 12pt
+// knob and 1.5pt of padding either side, which leaves this much travel.
+const KNOB_TRAVEL = 12;
+const TRACK_OFF = "#D7D7D7";
+const TRACK_ON = "#43A047";
+const KNOB_OFF = "#666666";
+const KNOB_ON = "#FFFFFF";
+
+// Veg mode repaints the entire feed, so the switch that arms it should look
+// like it moved rather than like the screen was replaced — the knob sliding is
+// the one frame that connects the tap to everything that changes behind it.
+function VegSwitch({ on }) {
+  const progress = useSharedValue(on ? 1 : 0);
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    progress.value = reduced
+      ? on
+        ? 1
+        : 0
+      : withTiming(on ? 1 : 0, { duration: DURATION.fast, easing: EASE.inOut });
+  }, [on, reduced, progress]);
+
+  const trackStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [TRACK_OFF, TRACK_ON]),
+  }));
+
+  const knobStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [KNOB_OFF, KNOB_ON]),
+    transform: [{ translateX: progress.value * KNOB_TRAVEL }],
+  }));
+
+  return (
+    <Animated.View
+      style={trackStyle}
+      className="mt-[3px] h-[15px] w-[27px] justify-center rounded-full px-[1.5px]"
+    >
+      <Animated.View style={knobStyle} className="size-3 rounded-full" />
+    </Animated.View>
+  );
+}
 
 // Figma "Search Bar" (270:2365) — search field plus the veg-only filter tile.
 // The tile keeps its green tint in both states (that's how it is drawn in the

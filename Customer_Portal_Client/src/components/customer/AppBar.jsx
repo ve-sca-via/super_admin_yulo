@@ -1,8 +1,10 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { ChevronLeft } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 
 import { cn } from "@/lib/utils";
+import { PRESS_SCALE } from "@/lib/motion";
+import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
 
 export default function AppBar({ title, theme = "light", className, onBack }) {
@@ -20,9 +22,14 @@ export default function AppBar({ title, theme = "light", className, onBack }) {
       )}
     >
       {handleBack && (
-        <Pressable onPress={handleBack} accessibilityLabel="Go back" hitSlop={8}>
+        <PressableScale
+          onPress={handleBack}
+          accessibilityLabel="Go back"
+          hitSlop={8}
+          scale={PRESS_SCALE.tight}
+        >
           <ChevronLeft size={24} color={dark ? "#ffffff" : "#1a1a1a"} />
-        </Pressable>
+        </PressableScale>
       )}
       <Text
         className={cn(

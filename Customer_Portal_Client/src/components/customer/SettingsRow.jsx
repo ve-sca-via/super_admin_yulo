@@ -1,7 +1,9 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 
+import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
+import { PRESS_SCALE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 // The one row shape the account section is built out of — profile, settings and
@@ -19,8 +21,9 @@ export default function SettingsRow({ label, icon: Icon, tone = "default", onPre
   const ink = destructive ? "#D9453F" : "#1A1A1A";
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
+      scale={PRESS_SCALE.subtle}
       accessibilityRole="button"
       accessibilityLabel={label}
       className={cn(
@@ -43,6 +46,6 @@ export default function SettingsRow({ label, icon: Icon, tone = "default", onPre
       </Text>
 
       <ChevronRight size={22} color={destructive ? ink : "#1A1A1A"} strokeWidth={2.2} />
-    </Pressable>
+    </PressableScale>
   );
 }

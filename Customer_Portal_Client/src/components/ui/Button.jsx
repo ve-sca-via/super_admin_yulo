@@ -1,8 +1,8 @@
 import { isValidElement } from "react";
-import { Pressable } from "react-native";
 import { cva } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
+import PressableScale from "./PressableScale";
 import Text from "./Text";
 
 const containerVariants = cva("items-center justify-center rounded-full flex-row gap-2", {
@@ -54,9 +54,12 @@ export default function Button({
   const effectiveVariant = disabled && variant !== "disabled" ? "disabled" : variant;
 
   return (
-    <Pressable
+    <PressableScale
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
+      // A disabled button is already drawn as unavailable; dimming it further on
+      // touch would suggest the tap did something.
+      dimTo={disabled ? 1 : 0.9}
       className={cn(
         containerVariants({ variant: effectiveVariant, size }),
         disabled && "opacity-100",
@@ -85,6 +88,6 @@ export default function Button({
           {children}
         </Text>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }

@@ -1,20 +1,15 @@
 import { useEffect, useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { ScrollView, TextInput, useWindowDimensions, View } from "react-native";
 import { Mic, Search, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
+import BottomSheet from "@/components/ui/BottomSheet";
+import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
 import VegModeBanner from "@/components/home/VegModeBanner";
 import { ACCENTS } from "@/lib/accent";
+import { DURATION, PRESS_SCALE, enter, exit } from "@/lib/motion";
 import { formatCount, sectionItems } from "@/data/menu";
 
 // The list is capped at a share of the window rather than a fixed height, so a
@@ -63,46 +58,27 @@ export default function MenuIndexSheet({
   };
 
   return (
-    <Modal
+    // Searching the menu from here puts the keyboard over the bottom of the
+    // window, which is where this panel — and its search field — sit.
+    <BottomSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      statusBarTranslucent
-      onRequestClose={onDismiss}
-    >
-      {/* Searching the menu from here puts the keyboard over the bottom of the
-          window, which is where this panel — and its search field — sit.
-          Android resizes the window itself, so only iOS needs the padding. */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1"
-      >
-        <Pressable
-          className="absolute inset-0 bg-black/40"
-          onPress={onDismiss}
-          accessibilityRole="button"
-          accessibilityLabel="Close menu index"
-        />
-
-        {/* Veg mode's confirmation rides above the dimmed backdrop rather than
-            inside the sheet — the customer has to be able to see it's on while
-            they're picking which part of the menu to read. */}
-        {vegOnly ? (
-          <View style={{ paddingTop: insets.top + 4 }} className="absolute inset-x-0 top-0 px-2">
+      onDismiss={onDismiss}
+      label="menu index"
+      keyboardAvoiding
+      scrimClassName="bg-black/40"
+      className="bg-background"
+      // Veg mode's confirmation rides above the dimmed backdrop rather than
+      // inside the sheet — the customer has to be able to see it's on while
+      // they're picking which part of the menu to read.
+      overlay={
+        vegOnly ? (
+          <View style={{ paddingTop: insets.top + 4 }} className="px-2">
             <VegModeBanner className="w-full justify-center rounded-2xl px-4 py-3" />
           </View>
-        ) : null}
-
-        {/* The sheet is flush to the bottom edge, so it carries the gesture-bar
-            inset itself rather than relying on a fixed pad that a taller
-            handset would swallow. */}
-        <View
-          style={{ paddingBottom: insets.bottom + 24 }}
-          className="mt-auto rounded-t-3xl bg-background px-6 pt-4"
-        >
-          <View className="h-1 w-10 self-center rounded-full bg-border-strong" />
-
-          <View className="mt-5 h-14 flex-row items-center rounded-full bg-card px-5 shadow-md shadow-black/10">
+        ) : null
+      }
+    >
+      <View className="mt-4 h-14 flex-row items-center rounded-full bg-card px-5 shadow-md shadow-black/10">
             <Search size={22} color={accent.icon} />
 
             <TextInput
@@ -115,94 +91,103 @@ export default function MenuIndexSheet({
               accessibilityLabel="Search in menu"
             />
 
-            <View className="mr-3 h-6 w-px bg-border" />
+        <View className="mr-3 h-6 w-px bg-border" />
 
-            <Pressable
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Voice search"
-              // No speech capture is wired up yet; the control is drawn in the
-              // design and stays inert until it is.
-              onPress={() => {}}
-            >
-              <Mic size={22} color={accent.icon} />
-            </Pressable>
-          </View>
+        <PressableScale
+          hitSlop={8}
+          scale={PRESS_SCALE.tight}
+          accessibilityRole="button"
+          accessibilityLabel="Voice search"
+          // No speech capture is wired up yet; the control is drawn in the
+          // design and stays inert until it is.
+          onPress={() => {}}
+        >
+          <Mic size={22} color={accent.icon} />
+        </PressableScale>
+      </View>
 
-          {sections.length ? (
-            <ScrollView
-              style={{ maxHeight: height * LIST_HEIGHT_RATIO }}
-              className="mt-3"
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {sections.map((section) => {
-                const open = openId === section.id;
-                const count = sectionItems(section).length;
+      {sections.length ? (
+        <ScrollView
+          style={{ maxHeight: height * LIST_HEIGHT_RATIO }}
+          className="mt-3"
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {sections.map((section, index) => {
+            const open = openId === section.id;
+            const count = sectionItems(section).length;
 
-                return (
-                  <View key={section.id}>
-                    <Pressable
-                      onPress={() => handleSectionPress(section)}
-                      className="flex-row items-center gap-3 py-4"
-                      accessibilityRole="button"
-                      accessibilityState={section.groups ? { expanded: open } : undefined}
-                      accessibilityLabel={`${section.title}, ${count} ${count === 1 ? "item" : "items"}`}
+            return (
+              <View key={section.id}>
+                <PressableScale
+                  entering={enter(FadeIn, { index, base: 80 })}
+                  onPress={() => handleSectionPress(section)}
+                  scale={PRESS_SCALE.subtle}
+                  className="flex-row items-center gap-3 py-4"
+                  accessibilityRole="button"
+                  accessibilityState={section.groups ? { expanded: open } : undefined}
+                  accessibilityLabel={`${section.title}, ${count} ${count === 1 ? "item" : "items"}`}
+                >
+                  <Text
+                    numberOfLines={2}
+                    className="shrink font-jakarta-semibold text-[21px] leading-[28px] text-foreground"
+                  >
+                    {section.title}
+                  </Text>
+
+                  {section.groups && open ? (
+                    <Animated.View
+                      entering={enter(FadeIn, { duration: DURATION.fast })}
+                      exiting={exit(FadeOut)}
+                      style={{ backgroundColor: accent.tint }}
+                      className="size-7 items-center justify-center rounded-full"
                     >
-                      <Text
-                        numberOfLines={2}
-                        className="shrink font-jakarta-semibold text-[21px] leading-[28px] text-foreground"
+                      <X size={15} color={accent.icon} />
+                    </Animated.View>
+                  ) : null}
+
+                  <View className="flex-1" />
+
+                  <Text className="font-jakarta-semibold text-[21px] leading-[28px] text-foreground">
+                    {formatCount(count)}
+                  </Text>
+                </PressableScale>
+
+                {/* Expanding a section reveals its groups in sequence, which
+                    is what makes the tap read as "this opened" rather than
+                    "the list changed underneath me". */}
+                {section.groups && open
+                  ? section.groups.map((group, groupIndex) => (
+                      <PressableScale
+                        key={group.id}
+                        entering={enter(FadeIn, { index: groupIndex, duration: DURATION.fast })}
+                        exiting={exit(FadeOut, { duration: DURATION.instant })}
+                        onPress={() => onSelect?.(group.id)}
+                        scale={PRESS_SCALE.subtle}
+                        className="py-3 pl-[72px]"
+                        accessibilityRole="button"
+                        accessibilityLabel={`${group.title}, in ${section.title}`}
                       >
-                        {section.title}
-                      </Text>
-
-                      {section.groups && open ? (
-                        <View
-                          style={{ backgroundColor: accent.tint }}
-                          className="size-7 items-center justify-center rounded-full"
+                        <Text
+                          numberOfLines={1}
+                          className="font-jakarta text-[19px] leading-[26px] text-foreground"
                         >
-                          <X size={15} color={accent.icon} />
-                        </View>
-                      ) : null}
+                          {group.title}
+                        </Text>
+                      </PressableScale>
+                    ))
+                  : null}
+              </View>
+            );
+          })}
 
-                      <View className="flex-1" />
-
-                      <Text className="font-jakarta-semibold text-[21px] leading-[28px] text-foreground">
-                        {formatCount(count)}
-                      </Text>
-                    </Pressable>
-
-                    {section.groups && open
-                      ? section.groups.map((group) => (
-                          <Pressable
-                            key={group.id}
-                            onPress={() => onSelect?.(group.id)}
-                            className="py-3 pl-[72px]"
-                            accessibilityRole="button"
-                            accessibilityLabel={`${group.title}, in ${section.title}`}
-                          >
-                            <Text
-                              numberOfLines={1}
-                              className="font-jakarta text-[19px] leading-[26px] text-foreground"
-                            >
-                              {group.title}
-                            </Text>
-                          </Pressable>
-                        ))
-                      : null}
-                  </View>
-                );
-              })}
-
-              <View className="mt-4 h-px bg-border" />
-            </ScrollView>
-          ) : (
-            <Text className="py-10 text-center font-jakarta-medium text-[14px] leading-[20px] text-muted-foreground">
-              No sections match this search.
-            </Text>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+          <View className="mt-4 h-px bg-border" />
+        </ScrollView>
+      ) : (
+        <Text className="py-10 text-center font-jakarta-medium text-[14px] leading-[20px] text-muted-foreground">
+          No sections match this search.
+        </Text>
+      )}
+    </BottomSheet>
   );
 }

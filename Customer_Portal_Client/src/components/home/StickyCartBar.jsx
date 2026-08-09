@@ -1,13 +1,22 @@
-import { Image, Pressable, View } from "react-native";
+import { Image, View } from "react-native";
 import { ChevronRight, X } from "lucide-react-native";
+import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 
 import Button from "@/components/ui/Button";
+import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
 import { accentFor } from "@/lib/accent";
+import { PRESS_SCALE, enter, exit } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 // Figma "Floating Sticky Cart Preview Card" (250:577). Veg mode repaints the
 // button and the "View menu" link green along with the rest of the feed.
+//
+// The bar appears the moment a first dish is added, from a screen the customer
+// may not be looking at the bottom of — so it slides up from the edge rather
+// than materialising, which is what makes it read as "your cart is down here"
+// instead of as a layout shift. It's the animated root itself, so a caller that
+// conditionally renders it still gets the exit.
 export default function StickyCartBar({
   restaurantName,
   restaurantImage,
@@ -16,13 +25,27 @@ export default function StickyCartBar({
   onViewMenu,
   onViewCart,
   onDismiss,
+  className,
+  style,
 }) {
   const accent = accentFor(vegOnly);
 
   return (
-    <View className="w-full flex-row items-center rounded-full border border-border bg-card px-[13.5px] py-[10.5px] shadow-md shadow-black/10">
-      <Pressable
+    <Animated.View
+      entering={enter(SlideInDown)}
+      exiting={exit(SlideOutDown)}
+      style={style}
+      // No `w-full` here: every caller positions this with `inset-x`, and a
+      // width set alongside left/right wins in Yoga — the bar would hang off
+      // the right edge by however much the left inset was.
+      className={cn(
+        "flex-row items-center rounded-full border border-border bg-card px-[13.5px] py-[10.5px] shadow-md shadow-black/10",
+        className,
+      )}
+    >
+      <PressableScale
         onPress={onViewMenu}
+        scale={PRESS_SCALE.subtle}
         className="flex-1 flex-row items-center gap-3"
         accessibilityRole="button"
         accessibilityLabel={`View menu for ${restaurantName}`}
@@ -51,7 +74,7 @@ export default function StickyCartBar({
             <ChevronRight size={10} color={accent.strong} />
           </View>
         </View>
-      </Pressable>
+      </PressableScale>
 
       <Button
         onPress={onViewCart}
@@ -71,15 +94,16 @@ export default function StickyCartBar({
       {/* This empties the cart rather than only hiding the bar, so the label
           says so — "dismiss" would promise the order was still there to come
           back to, and the cart is persisted now. */}
-      <Pressable
+      <PressableScale
         onPress={onDismiss}
         hitSlop={8}
+        scale={PRESS_SCALE.tight}
         className="size-10 items-center justify-center rounded-full"
         accessibilityRole="button"
         accessibilityLabel={`Empty your cart from ${restaurantName}`}
       >
         <X size={15} color="#1A1A1A" />
-      </Pressable>
-    </View>
+      </PressableScale>
+    </Animated.View>
   );
 }

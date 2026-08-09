@@ -170,22 +170,21 @@ export default function Search({ navigation }) {
 
       {/* Hidden while suggestions are up — that's where the keyboard sits. */}
       {cart && !searching && !cartBarDismissed ? (
-        <View className="absolute inset-x-[7px] bottom-2">
-          <StickyCartBar
-            restaurantName={cart.restaurantName}
-            restaurantImage={cartRestaurant}
-            itemCount={cart.itemCount}
-            vegOnly={vegOnly}
-            onViewMenu={() =>
-              navigation?.navigate("Menu", {
-                restaurantId: cart.restaurantId,
-                restaurantName: cart.restaurantName,
-              })
-            }
-            onViewCart={() => navigation?.navigate("Cart")}
-            onDismiss={() => setCartBarDismissed(true)}
-          />
-        </View>
+        <StickyCartBar
+          className="absolute inset-x-[7px] bottom-2"
+          restaurantName={cart.restaurantName}
+          restaurantImage={cartRestaurant}
+          itemCount={cart.itemCount}
+          vegOnly={vegOnly}
+          onViewMenu={() =>
+            navigation?.navigate("Menu", {
+              restaurantId: cart.restaurantId,
+              restaurantName: cart.restaurantName,
+            })
+          }
+          onViewCart={() => navigation?.navigate("Cart")}
+          onDismiss={() => setCartBarDismissed(true)}
+        />
       ) : null}
     </Screen>
   );

@@ -1,7 +1,9 @@
-import { Image, Pressable, View } from "react-native";
+import { Image, View } from "react-native";
 import { Clock } from "lucide-react-native";
 import Svg, { Path } from "react-native-svg";
 
+import useResponsive from "@/hooks/useResponsive";
+import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
 import RatingPill from "./RatingPill";
 
@@ -10,6 +12,11 @@ const offerTag = require("@/assets/home/offer-tag.png");
 // Figma "Restaurant Card (small)" (250:471 et al) is authored at 123x155, with
 // the rating pill hanging 9.5px past the bottom edge — the wrapper is taller so
 // nothing has to overflow its parent.
+//
+// Everything here is a design-frame measurement passed through `size()`. Left
+// literal, a 123pt card shows two-and-a-bit across an SE and four across a Pro
+// Max, so the row reads as a different component on each handset; scaled, the
+// same number of cards fits everywhere and the gap either side stays even.
 const CARD_WIDTH = 123;
 const CARD_HEIGHT = 155;
 const WRAPPER_HEIGHT = 166;
@@ -17,11 +24,16 @@ const PHOTO_HEIGHT = 81;
 const RIBBON_WIDTH = 91;
 const RIBBON_HEIGHT = 11;
 
+// The rating pill nests into the bite cut out of the card's bottom-left corner,
+// so its offsets are part of that shape rather than free-standing spacing.
+const PILL_LEFT = -5.5;
+const PILL_TOP = 142.5;
+
 // Figma "Subtract" (250:471): a rounded card with a circular bite taken out of
 // the bottom-left corner so the rating pill nests into it.
-function CardOutline() {
+function CardOutline({ size }) {
   return (
-    <Svg width={CARD_WIDTH + 1} height={CARD_HEIGHT + 1} viewBox="0 0 124 156" fill="none">
+    <Svg width={size(CARD_WIDTH + 1)} height={size(CARD_HEIGHT + 1)} viewBox="0 0 124 156" fill="none">
       <Path
         d="M103 0.5C114.322 0.5 123.5 9.67816 123.5 21V135C123.5 146.322 114.322 155.5 103 155.5H47.9258C47.9748 155.007 48 154.506 48 154C48 145.716 41.2843 139 33 139H0.890625C0.634731 137.706 0.5 136.369 0.5 135V21C0.5 9.67816 9.67816 0.5 21 0.5H103Z"
         fill="#FFFFFF"
@@ -36,12 +48,15 @@ function CardOutline() {
 
 // Figma "Subtract" (250:483): the offer strip across the photo, notched on its
 // trailing edge.
-function OfferRibbon({ label }) {
+function OfferRibbon({ label, size }) {
   return (
-    <View className="absolute left-0 top-3" style={{ width: RIBBON_WIDTH, height: RIBBON_HEIGHT }}>
+    <View
+      className="absolute left-0 top-3"
+      style={{ width: size(RIBBON_WIDTH), height: size(RIBBON_HEIGHT) }}
+    >
       <Svg
-        width={RIBBON_WIDTH}
-        height={RIBBON_HEIGHT}
+        width={size(RIBBON_WIDTH)}
+        height={size(RIBBON_HEIGHT)}
         viewBox="0 0 91 11"
         fill="none"
         style={{ position: "absolute", left: 0, top: 0 }}
@@ -75,22 +90,23 @@ function CarouselDots({ count }) {
 }
 
 export default function RestaurantCardSmall({ restaurant, ratingTone, onPress }) {
+  const { size } = useResponsive();
   const { name, image, rating, deliveryTime, offer, photoCount = 3 } = restaurant;
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
-      style={{ width: CARD_WIDTH, height: WRAPPER_HEIGHT }}
+      style={{ width: size(CARD_WIDTH), height: size(WRAPPER_HEIGHT) }}
       accessibilityRole="button"
       accessibilityLabel={`${name}, rated ${rating}, ${deliveryTime}`}
     >
       <View className="absolute left-0 top-0">
-        <CardOutline />
+        <CardOutline size={size} />
       </View>
 
-      <View style={{ height: PHOTO_HEIGHT }} className="w-full overflow-hidden rounded-t-2xl">
+      <View style={{ height: size(PHOTO_HEIGHT) }} className="w-full overflow-hidden rounded-t-2xl">
         <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" resizeMethod="resize" />
-        {offer ? <OfferRibbon label={offer} /> : null}
+        {offer ? <OfferRibbon label={offer} size={size} /> : null}
         <CarouselDots count={photoCount} />
       </View>
 
@@ -110,7 +126,12 @@ export default function RestaurantCardSmall({ restaurant, ratingTone, onPress })
         </View>
       </View>
 
-      <RatingPill rating={rating} tone={ratingTone} className="absolute -left-[5.5px] top-[142.5px]" />
-    </Pressable>
+      <RatingPill
+        rating={rating}
+        tone={ratingTone}
+        className="absolute"
+        style={{ left: size(PILL_LEFT), top: size(PILL_TOP) }}
+      />
+    </PressableScale>
   );
 }

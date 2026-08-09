@@ -1,8 +1,12 @@
-import { Image, Pressable, View } from "react-native";
-import { Clock, Heart, Leaf } from "lucide-react-native";
+import { Image, View } from "react-native";
+import { Clock, Leaf } from "lucide-react-native";
 
+import useResponsive from "@/hooks/useResponsive";
 import Card from "@/components/ui/Card";
+import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
+import { PRESS_SCALE } from "@/lib/motion";
+import FavouriteHeart from "./FavouriteHeart";
 import RatingPill from "./RatingPill";
 
 // Figma "Restaurant Vertical Card" (250:520 / 250:551). The favourite button is
@@ -16,6 +20,7 @@ export default function RestaurantCardLarge({
   onToggleFavourite,
   onPress,
 }) {
+  const { size } = useResponsive();
   const { name, image, rating, cuisines = [], eta, distance, priceHint, pureVeg } = restaurant;
 
   // Distance has no source in the API yet, and a storefront can legitimately
@@ -25,20 +30,22 @@ export default function RestaurantCardLarge({
 
   return (
     <Card className="w-full overflow-hidden p-0">
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={name}>
-        <View style={{ height: PHOTO_HEIGHT }} className="w-full">
+      {/* A card this large barely reads a scale, so its press is mostly the
+          opacity dip — enough to confirm the tap without the whole feed
+          appearing to flex. */}
+      <PressableScale
+        onPress={onPress}
+        scale={PRESS_SCALE.subtle}
+        accessibilityRole="button"
+        accessibilityLabel={name}
+      >
+        {/* The photo is the card's proportion, so it tracks the viewport —
+            keeping the same 180/390 ratio the frame was drawn at rather than
+            leaving a fixed band that crowds a small phone. */}
+        <View style={{ height: size(PHOTO_HEIGHT) }} className="w-full">
           <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
 
-          <Pressable
-            onPress={onToggleFavourite}
-            hitSlop={8}
-            className="absolute right-4 top-4 size-10 items-center justify-center rounded-full bg-black/20"
-            accessibilityRole="button"
-            accessibilityLabel={favourite ? `Remove ${name} from favourites` : `Add ${name} to favourites`}
-            accessibilityState={{ selected: favourite }}
-          >
-            <Heart size={24} color={favourite ? "#E53935" : "#FFFFFF"} fill={favourite ? "#E53935" : "transparent"} />
-          </Pressable>
+          <FavouriteHeart favourite={favourite} label={name} onPress={onToggleFavourite} />
         </View>
 
         <View className="w-full gap-1 p-4">
@@ -94,7 +101,7 @@ export default function RestaurantCardLarge({
             </View>
           ) : null}
         </View>
-      </Pressable>
+      </PressableScale>
     </Card>
   );
 }

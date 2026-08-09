@@ -1,8 +1,11 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { ArrowLeft } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 
+import useResponsive from "@/hooks/useResponsive";
+import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
+import { PRESS_SCALE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 // The header every account screen wears (Figma frames 25–32): one arrow, one
@@ -16,20 +19,25 @@ import { cn } from "@/lib/utils";
 // instead of floating into the middle of the block.
 export default function PageHeader({ title, className, onBack }) {
   const navigation = useNavigation();
+  const { gutter } = useResponsive();
   const back = onBack ?? (navigation.canGoBack() ? () => navigation.goBack() : null);
 
   return (
-    <View className={cn("flex-row items-start gap-4 px-6 pt-2", className)}>
+    <View
+      style={{ paddingHorizontal: gutter }}
+      className={cn("flex-row items-start gap-4 pt-2", className)}
+    >
       {back ? (
-        <Pressable
+        <PressableScale
           onPress={back}
           hitSlop={10}
+          scale={PRESS_SCALE.tight}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           className="mt-1.5"
         >
           <ArrowLeft size={26} color="#1A1A1A" strokeWidth={2.4} />
-        </Pressable>
+        </PressableScale>
       ) : null}
 
       <Text className="flex-1 font-jakarta-extrabold text-[30px] leading-[38px] text-foreground">

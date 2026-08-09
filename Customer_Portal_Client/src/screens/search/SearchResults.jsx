@@ -151,17 +151,16 @@ export default function SearchResults({ navigation, route }) {
       />
 
       {cart && !cartBarDismissed ? (
-        <View className="absolute inset-x-[7px] bottom-2">
-          <StickyCartBar
-            restaurantName={cart.restaurantName}
-            restaurantImage={cartRestaurant}
-            itemCount={cart.itemCount}
-            vegOnly={vegOnly}
-            onViewMenu={() => openMenu({ id: cart.restaurantId, name: cart.restaurantName })}
-            onViewCart={() => navigation?.navigate("Cart")}
-            onDismiss={() => setCartBarDismissed(true)}
-          />
-        </View>
+        <StickyCartBar
+          className="absolute inset-x-[7px] bottom-2"
+          restaurantName={cart.restaurantName}
+          restaurantImage={cartRestaurant}
+          itemCount={cart.itemCount}
+          vegOnly={vegOnly}
+          onViewMenu={() => openMenu({ id: cart.restaurantId, name: cart.restaurantName })}
+          onViewCart={() => navigation?.navigate("Cart")}
+          onDismiss={() => setCartBarDismissed(true)}
+        />
       ) : null}
     </Screen>
   );

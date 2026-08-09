@@ -1,7 +1,9 @@
-import { Image, Pressable, View } from "react-native";
+import { Image, View } from "react-native";
 import { Plus, Utensils } from "lucide-react-native";
 
+import useResponsive from "@/hooks/useResponsive";
 import Card from "@/components/ui/Card";
+import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
 import { formatPrice, savingFor } from "@/data/menu";
 import { cn } from "@/lib/utils";
@@ -33,13 +35,14 @@ function Tag({ label, tone }) {
 // of the pair, so the price block and the Add button are pushed to the bottom
 // rather than following a description whose length varies dish to dish.
 export default function MenuItemCard({ item, accent, onAdd }) {
+  const { size } = useResponsive();
   const { name, description, price, mrp, image, veg, tag } = item;
   const saving = savingFor(item);
   const badge = saving ? `Save ${formatPrice(saving)}` : tag;
 
   return (
     <Card className="flex-1 overflow-hidden p-0">
-      <View style={{ height: PHOTO_HEIGHT }} className="w-full bg-muted">
+      <View style={{ height: size(PHOTO_HEIGHT) }} className="w-full bg-muted">
         {image ? (
           <Image source={image} style={{ width: "100%", height: "100%" }} resizeMode="cover" resizeMethod="resize" />
         ) : (
@@ -91,7 +94,7 @@ export default function MenuItemCard({ item, accent, onAdd }) {
             </Text>
           </View>
 
-          <Pressable
+          <PressableScale
             onPress={onAdd}
             style={{ borderColor: accent.icon }}
             className="mt-3 h-11 w-full flex-row items-center justify-center gap-1 rounded-full border-[1.5px] bg-card"
@@ -102,7 +105,7 @@ export default function MenuItemCard({ item, accent, onAdd }) {
             <Text style={{ color: accent.icon }} className="font-jakarta-semibold text-[14px]">
               Add
             </Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
     </Card>

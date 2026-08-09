@@ -288,26 +288,25 @@ export default function RestaurantMenu({ navigation, menu, restaurantName }) {
       </View>
 
       {cart && !cartBarDismissed ? (
-        <View className="absolute inset-x-[7px] bottom-2">
-          <StickyCartBar
-            restaurantName={cart.restaurantName}
-            restaurantImage={menu.hero}
-            itemCount={cart.itemCount}
-            vegOnly={vegOnly}
-            // Already on this storefront's menu — the link only has somewhere to
-            // go when the open cart belongs to a different one.
-            onViewMenu={() =>
-              String(cart.restaurantId) === String(menu.id)
-                ? scrollRef.current?.scrollTo({ y: 0, animated: true })
-                : navigation?.push("Menu", {
-                    restaurantId: cart.restaurantId,
-                    restaurantName: cart.restaurantName,
-                  })
-            }
-            onViewCart={() => navigation?.navigate("Cart")}
-            onDismiss={() => setCartBarDismissed(true)}
-          />
-        </View>
+        <StickyCartBar
+          className="absolute inset-x-[7px] bottom-2"
+          restaurantName={cart.restaurantName}
+          restaurantImage={menu.hero}
+          itemCount={cart.itemCount}
+          vegOnly={vegOnly}
+          // Already on this storefront's menu — the link only has somewhere to
+          // go when the open cart belongs to a different one.
+          onViewMenu={() =>
+            String(cart.restaurantId) === String(menu.id)
+              ? scrollRef.current?.scrollTo({ y: 0, animated: true })
+              : navigation?.push("Menu", {
+                  restaurantId: cart.restaurantId,
+                  restaurantName: cart.restaurantName,
+                })
+          }
+          onViewCart={() => navigation?.navigate("Cart")}
+          onDismiss={() => setCartBarDismissed(true)}
+        />
       ) : null}
     </Screen>
   );
