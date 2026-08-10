@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 
 import { useFeed } from "@/context/FeedContext";
 import { useRecentSearches, usePopularSearches, useTypeahead, useAddRecentSearch } from "@/hooks/useSearch";
+import useVoiceSearch from "@/hooks/useVoiceSearch";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import { cn } from "@/lib/utils";
@@ -34,7 +35,7 @@ function Heading({ children, className }) {
   );
 }
 
-export default function Search({ navigation }) {
+export default function Search({ navigation, route }) {
   const { cart, vegOnly } = useFeed();
 
   const [query, setQuery] = useState("");
@@ -81,12 +82,14 @@ export default function Search({ navigation }) {
   );
 
   // Popular searches are plain `{ query }` objects — there's no id and no image.
+  // Real art only exists for biryani so far; everything else falls back to
+  // PopularSearchGrid's placeholder tile rather than reusing that photo everywhere.
   const popular = useMemo(
     () =>
       popularSearches.map((item) => ({
         id: item.query,
         label: item.query,
-        image: categoryBiryani,
+        image: /biryani/i.test(item.query) ? categoryBiryani : null,
       })),
     [popularSearches],
   );
@@ -98,6 +101,25 @@ export default function Search({ navigation }) {
     addRecentSearch.mutate(value);
     navigation?.navigate("SearchResults", { query: value });
   };
+
+  const voice = useVoiceSearch({
+    onResult: (transcript, { isFinal }) => {
+      setQuery(transcript);
+      if (isFinal) submitSearch(transcript);
+    },
+  });
+
+  // Home's mic hands off here rather than listening in place — the field
+  // there is a doorway with no text state of its own, so the only place
+  // speech can land is the screen that actually owns a query.
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (route?.params?.voiceAutoStart && !autoStartedRef.current) {
+      autoStartedRef.current = true;
+      voice.start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route?.params?.voiceAutoStart]);
 
   return (
     <Screen edges={["top", "bottom"]}>
@@ -113,8 +135,14 @@ export default function Search({ navigation }) {
         value={query}
         onChangeText={setQuery}
         onSubmit={() => submitSearch(query)}
+        onVoiceSearch={voice.toggle}
+        listening={voice.listening}
         vegOnly={vegOnly}
       />
+
+      {voice.error ? (
+        <Text className="mt-2 px-6 font-jakarta text-[12px] text-destructive">{voice.error}</Text>
+      ) : null}
 
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -155,7 +183,7 @@ export default function Search({ navigation }) {
             ) : null}
 
             <Heading className="mt-8">Popular right now</Heading>
-            <View className="mt-4">
+            <View className="mt-5">
               <PopularSearchGrid
                 items={popular}
                 onSelect={(item) => {

@@ -56,7 +56,7 @@ export default function HomeHeader({ address, onPressAddress, onPressProfile }) 
         accessibilityRole="button"
         accessibilityLabel="Profile"
       >
-        <User size={16} color="#F0592A" />
+        <User size={22} color="#F0592A" />
       </PressableScale>
     </View>
   );

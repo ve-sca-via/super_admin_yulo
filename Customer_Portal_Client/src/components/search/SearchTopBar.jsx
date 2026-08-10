@@ -3,7 +3,7 @@ import { Mic, Search } from "lucide-react-native";
 
 import BackButton from "@/components/customer/BackButton";
 import Text from "@/components/ui/Text";
-import { accentFor } from "@/lib/accent";
+import { LISTENING_COLOR, accentFor } from "@/lib/accent";
 import { cn } from "@/lib/utils";
 
 // Figma "09 · Search". Same field as home's HomeSearchBar, but the veg tile is
@@ -14,6 +14,7 @@ export default function SearchTopBar({
   onChangeText,
   onSubmit,
   onVoiceSearch,
+  listening = false,
   onPressField,
   vegOnly = false,
   autoFocus = true,
@@ -68,9 +69,9 @@ export default function SearchTopBar({
           onPress={onVoiceSearch}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Voice search"
+          accessibilityLabel={listening ? "Stop voice search" : "Voice search"}
         >
-          <Mic size={20} color={accent.icon} />
+          <Mic size={20} color={listening ? LISTENING_COLOR : accent.icon} />
         </Pressable>
       </View>
     </View>

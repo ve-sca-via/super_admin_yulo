@@ -137,6 +137,28 @@ export function CustomerAuthProvider({ children }) {
     else AsyncStorage.removeItem(LOCATION_KEY).catch(() => {});
   }, []);
 
+  // Picking a saved address only changed `isDefault` server-side — the Home header
+  // and the feed's lat/lng both read `deliveryLocation`, which nothing was updating,
+  // so choosing "Home" from the address list left the header (and the restaurants
+  // shown) stuck on whatever GPS or manual entry had set it to last.
+  const syncDeliveryLocationFromAddress = useCallback(
+    (address) => {
+      if (!address) return;
+      const coordinates = address.location?.coordinates;
+      setDeliveryLocation({
+        label:
+          [address.street, address.city].filter(Boolean).join(", ") ||
+          address.customLabel ||
+          address.label ||
+          "Saved address",
+        city: address.city ?? null,
+        pincode: address.pincode ?? null,
+        coords: coordinates ? { latitude: coordinates[1], longitude: coordinates[0] } : null,
+      });
+    },
+    [setDeliveryLocation],
+  );
+
   const addAddressMutation = useMutation({
     mutationFn: (data) => client.post("/users/me/addresses", data),
     // The address endpoints return the whole `savedAddresses` array, so the profile
@@ -144,6 +166,9 @@ export function CustomerAuthProvider({ children }) {
     onSuccess: (data) => {
       if (data?.savedAddresses) {
         setUser((current) => (current ? { ...current, savedAddresses: data.savedAddresses } : current));
+        syncDeliveryLocationFromAddress(
+          data.savedAddresses.find((address) => address.isDefault) ?? data.savedAddresses[0],
+        );
       }
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       queryClient.invalidateQueries({ queryKey: ["checkoutSummary"] });
@@ -155,6 +180,9 @@ export function CustomerAuthProvider({ children }) {
     onSuccess: (data) => {
       if (data?.savedAddresses) {
         setUser((current) => (current ? { ...current, savedAddresses: data.savedAddresses } : current));
+        syncDeliveryLocationFromAddress(
+          data.savedAddresses.find((address) => address.isDefault) ?? data.savedAddresses[0],
+        );
       }
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       // Checkout reads the *default* address, so changing it changes the summary.
@@ -167,6 +195,9 @@ export function CustomerAuthProvider({ children }) {
     onSuccess: (data) => {
       if (data?.savedAddresses) {
         setUser((current) => (current ? { ...current, savedAddresses: data.savedAddresses } : current));
+        // Deleting the default auto-promotes another address server-side — sync so
+        // the header follows it instead of still showing the one just removed.
+        syncDeliveryLocationFromAddress(data.savedAddresses.find((address) => address.isDefault));
       }
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       queryClient.invalidateQueries({ queryKey: ["checkoutSummary"] });

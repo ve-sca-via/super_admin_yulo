@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Alert, Image, RefreshControl, ScrollView, View } from "react-native";
+import { Image, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
@@ -23,6 +23,7 @@ import VegModeBanner from "@/components/home/VegModeBanner";
 import VegModePopover from "@/components/home/VegModePopover";
 import { enter } from "@/lib/motion";
 import { toRestaurantCard } from "@/lib/restaurant";
+import { formatImageUrl } from "@/api/config";
 
 const goldBackdrop = require("@/assets/home/promo-gold-backdrop.png");
 const firstOrderBanner = require("@/assets/home/first-order-offer-banner.png");
@@ -125,7 +126,7 @@ export default function Home({ navigation }) {
       (feedData?.quickFilterChips ?? []).map((chip, index) => ({
         id: `chip-${index}`,
         label: chip.label,
-        image: chip.iconUrl ? { uri: chip.iconUrl } : categoryBiryani,
+        image: chip.iconUrl ? { uri: formatImageUrl(chip.iconUrl) } : categoryBiryani,
         // Veg mode already filtered what came back, so every chip under it is veg.
         veg: vegOnly,
         query: chip.queryParam ?? chip.label,
@@ -141,7 +142,7 @@ export default function Home({ navigation }) {
         id: item.restaurantId,
         itemId: item._id,
         name: item.name,
-        image: item.image ? { uri: item.image } : dishBiryani,
+        image: item.image ? { uri: formatImageUrl(item.image) } : dishBiryani,
         offer: `₹${item.effectivePrice}`,
         veg: item.foodType === "veg",
         rating: "New",
@@ -194,7 +195,7 @@ export default function Home({ navigation }) {
           />
 
           <View style={{ paddingHorizontal: gutter }} className="mt-3">
-            <CategorySwitcher value={category} onChange={setCategory} />
+            <CategorySwitcher value={category} onChange={setCategory} vegOnly={vegOnly} />
           </View>
 
           <View style={{ paddingHorizontal: gutter }} className="mt-3">
@@ -202,13 +203,14 @@ export default function Home({ navigation }) {
               vegOnly={vegOnly}
               onPressVeg={openVegPopover}
               onPressField={() => navigation?.navigate("Search")}
+              onVoiceSearch={() => navigation?.navigate("Search", { voiceAutoStart: true })}
             />
           </View>
 
           <Image
             source={firstOrderBanner}
             style={{ marginTop: 6, width: "100%", height: BANNER_HEIGHT }}
-            resizeMode="contain"
+            resizeMode="cover"
           />
         </View>
 
@@ -347,11 +349,9 @@ export default function Home({ navigation }) {
             away instead of switching the tile underneath. */}
         <HomeBottomNav
           value={tab}
+          vegOnly={vegOnly}
           onChange={(key) => (key === "history" ? navigation?.navigate("Orders") : setTab(key))}
-          // `alert()` is a web global — on a device it's undefined and throws.
-          onScan={() =>
-            Alert.alert("Scan to order", "QR scanning isn't available yet — it's coming soon.")
-          }
+          onScan={() => navigation?.navigate("ScanQr")}
         />
       </View>
     </Screen>

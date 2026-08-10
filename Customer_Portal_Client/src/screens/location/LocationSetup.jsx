@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, TextInput, View } from "react-native";
 import * as Location from "expo-location";
 import { MapPin, Search } from "lucide-react-native";
@@ -35,13 +35,29 @@ export default function LocationSetup({ onNext }) {
       const position = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      const [place] = await Location.reverseGeocodeAsync({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
-      const label = place
-        ? [place.name, place.street, place.city].filter(Boolean).join(", ")
-        : "Current location";
+
+      // Reverse geocoding depends on a device-side geocoder (Play services on
+      // Android, Apple's on iOS) that emulators and some devices don't have —
+      // it can throw, or resolve with an empty result, either way leaving the
+      // GPS fix itself perfectly good. Losing the whole location to a label
+      // lookup failing would be worse than showing a coordinate-based label.
+      let place = null;
+      try {
+        [place] = await Location.reverseGeocodeAsync({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      } catch {
+        place = null;
+      }
+
+      const geocodedLabel = place
+        ? [place.name, place.street, place.district, place.city, place.subregion, place.region]
+            .filter(Boolean)
+            .join(", ")
+        : "";
+      const label =
+        geocodedLabel || `Near ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
 
       // Only latitude/longitude are kept: the rest of the GeolocationPosition
       // (accuracy, heading, speed, a timestamp) is a snapshot of one moment and
@@ -62,6 +78,14 @@ export default function LocationSetup({ onNext }) {
       setLocating(false);
     }
   };
+
+  // Request the location fix the moment the screen opens rather than waiting
+  // on a tap - the button below stays as the retry path if the user dismisses
+  // the permission prompt or it fails.
+  useEffect(() => {
+    handleUseCurrentLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // There's no server-side geocoding, so a typed address can't be resolved to
   // coordinates — the feed falls back to the city centre for it. Saying so is

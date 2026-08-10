@@ -10,6 +10,7 @@ import PhoneLogin from "@/screens/auth/PhoneLogin";
 import OtpVerification from "@/screens/auth/OtpVerification";
 import LocationSetup from "@/screens/location/LocationSetup";
 import Home from "@/screens/home/Home";
+import ScanQr from "@/screens/scan/ScanQr";
 import Search from "@/screens/search/Search";
 import SearchResults from "@/screens/search/SearchResults";
 import MenuRoute from "@/screens/menu/MenuRoute";
@@ -100,6 +101,11 @@ export default function RootNavigator() {
       ) : (
         <Stack.Group>
           <Stack.Screen name="Home" component={Home} />
+
+          {/* The feed's bottom nav opens this over everything else — full-screen,
+              transparent status bar, and closed with its own X rather than the
+              header back arrow. */}
+          <Stack.Screen name="ScanQr" component={ScanQr} options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
 
           {/* Reachable after signing in as well as before it: the feed's address
               chip opens it to change where the order goes. */}

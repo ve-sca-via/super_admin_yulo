@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, useWindowDimensions, View } from "react-native";
+import Svg, { Path } from "react-native-svg";
 
 import Button from "@/components/ui/Button";
 import Text from "@/components/ui/Text";
@@ -45,10 +46,7 @@ function RadioRow({ label, selected, onPress }) {
       </View>
 
       <Text
-        className={cn(
-          "flex-1 font-jakarta-medium text-[13px] leading-[18px]",
-          selected ? "text-foreground" : "text-muted-foreground",
-        )}
+        className="flex-1 font-jakarta-medium text-[13px] leading-[18px] text-foreground"
       >
         {label}
       </Text>
@@ -101,8 +99,14 @@ export default function VegModePopover({
 
       <View
         style={{ position: "absolute", top, left, width: CARD_WIDTH }}
-        className="rounded-2xl bg-card p-4 shadow-lg shadow-black/25"
+        className="rounded-[24px] bg-card p-[18px] shadow-lg shadow-black/25"
       >
+        {/* Caret pointing up to the Veg toggle */}
+        <View style={{ position: "absolute", top: -8, right: 30 }}>
+          <Svg width="18" height="9" viewBox="0 0 18 9" fill="none">
+            <Path d="M9 0L18 9H0L9 0Z" fill="#FFFFFF" />
+          </Svg>
+        </View>
         <Text className="font-jakarta-semibold text-[14px] leading-[20px] text-foreground">
           See veg dishes from
         </Text>
@@ -133,7 +137,7 @@ export default function VegModePopover({
           accessibilityRole="button"
           accessibilityLabel="More settings"
         >
-          <Text className="font-jakarta-medium text-[12px] leading-[16px] text-muted-foreground">
+          <Text className="font-jakarta-medium text-[12px] leading-[16px] text-[#43A047]">
             More settings
           </Text>
         </Pressable>

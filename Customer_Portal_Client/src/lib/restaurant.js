@@ -10,6 +10,8 @@
 // distance but doesn't project it, so the card's distance slot stays empty until
 // the endpoint returns one.
 
+import { formatImageUrl } from "@/api/config";
+
 const FALLBACK_ETA = "30-40 min";
 
 export function toRestaurantCard(restaurant, { fallbackImage = null } = {}) {
@@ -22,7 +24,7 @@ export function toRestaurantCard(restaurant, { fallbackImage = null } = {}) {
     ...restaurant,
     id: restaurant._id ?? restaurant.id,
     name: restaurant.name,
-    image: image ? { uri: image } : fallbackImage,
+    image: image ? { uri: formatImageUrl(image) } : fallbackImage,
     // A restaurant nobody has rated yet has `avgRating: 0`, which would print as
     // a real score of zero rather than as "not rated".
     rating: restaurant.avgRating ? restaurant.avgRating.toFixed(1) : "New",

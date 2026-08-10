@@ -14,3 +14,12 @@ const DEV_FALLBACK = Platform.select({
 });
 
 export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || DEV_FALLBACK;
+
+export function formatImageUrl(url) {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  // Ensure we don't double up slashes if API_BASE ends with one and url starts with one.
+  const base = API_BASE.endsWith("/") ? API_BASE.slice(0, -1) : API_BASE;
+  const path = url.startsWith("/") ? url : `/${url}`;
+  return `${base}${path}`;
+}

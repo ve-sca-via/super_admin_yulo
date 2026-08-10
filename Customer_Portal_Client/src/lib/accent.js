@@ -13,3 +13,8 @@ export const ACCENTS = {
 export function accentFor(vegOnly) {
   return vegOnly ? ACCENTS.veg : ACCENTS.default;
 }
+
+// The colour every mic button turns while it's actually recording — fixed
+// rather than following the veg accent, since "listening" needs to read the
+// same regardless of which screen's search bar it's drawn on.
+export const LISTENING_COLOR = "#E43734";

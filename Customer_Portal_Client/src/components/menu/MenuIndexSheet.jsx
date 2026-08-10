@@ -8,7 +8,8 @@ import BottomSheet from "@/components/ui/BottomSheet";
 import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
 import VegModeBanner from "@/components/home/VegModeBanner";
-import { ACCENTS } from "@/lib/accent";
+import useVoiceSearch from "@/hooks/useVoiceSearch";
+import { ACCENTS, LISTENING_COLOR } from "@/lib/accent";
 import { DURATION, PRESS_SCALE, enter, exit } from "@/lib/motion";
 import { formatCount, sectionItems } from "@/data/menu";
 
@@ -43,10 +44,17 @@ export default function MenuIndexSheet({
   // index, not a change to how the menu underneath is folded.
   const [openId, setOpenId] = useState(null);
 
+  const voice = useVoiceSearch({ onResult: (transcript) => onChangeQuery?.(transcript) });
+
   // A reopened sheet starts collapsed, so it never comes back holding a section
-  // the customer opened several storefronts ago.
+  // the customer opened several storefronts ago. A sheet dismissed mid-listen
+  // shouldn't keep the mic hot behind it either.
   useEffect(() => {
-    if (!visible) setOpenId(null);
+    if (!visible) {
+      setOpenId(null);
+      voice.stop();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const handleSectionPress = (section) => {
@@ -97,14 +105,16 @@ export default function MenuIndexSheet({
           hitSlop={8}
           scale={PRESS_SCALE.tight}
           accessibilityRole="button"
-          accessibilityLabel="Voice search"
-          // No speech capture is wired up yet; the control is drawn in the
-          // design and stays inert until it is.
-          onPress={() => {}}
+          accessibilityLabel={voice.listening ? "Stop voice search" : "Voice search"}
+          onPress={voice.toggle}
         >
-          <Mic size={22} color={accent.icon} />
+          <Mic size={22} color={voice.listening ? LISTENING_COLOR : accent.icon} />
         </PressableScale>
       </View>
+
+      {voice.error ? (
+        <Text className="mt-2 font-jakarta text-[12px] text-destructive">{voice.error}</Text>
+      ) : null}
 
       {sections.length ? (
         <ScrollView

@@ -15,7 +15,7 @@ export default function VegModeBanner({
   return (
     <View
       className={cn(
-        "flex-row items-center gap-1.5 self-start rounded-full border border-[#43A047] bg-[#EAF6EA] px-3 py-1.5",
+        "flex-row items-center gap-1.5 self-center rounded-full border border-[#43A047] bg-[#EAF6EA] px-3 py-1.5",
         className,
       )}
     >

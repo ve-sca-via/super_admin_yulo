@@ -78,6 +78,8 @@ export default function PressableScale({
       className={cn(className)}
       style={[style, animatedStyle]}
       {...props}
-    />
+    >
+      {children}
+    </AnimatedPressable>
   );
 }
