@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -131,7 +131,7 @@ export default function Profile() {
         </View>
       </View>
 
-      <View className="w-full flex-1 gap-5 px-6 pt-5">
+      <ScrollView className="w-full flex-1" contentContainerClassName="gap-5 px-6 pb-6 pt-5">
         {MENU_SECTIONS.map((section) => (
           <View key={section.label} className="w-full gap-2.5">
             <SectionLabel>{section.label}</SectionLabel>
@@ -151,7 +151,7 @@ export default function Profile() {
           <SectionLabel>Account</SectionLabel>
           <MenuRow icon={LogOut} label="Log out" onPress={() => setShowLogout(true)} />
         </View>
-      </View>
+      </ScrollView>
 
       {showLogout && (
         <View className="absolute inset-0 z-10 items-center justify-center bg-black/20 px-6">

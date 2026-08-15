@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQueryClient } from "@tanstack/react-query";
 
 import client, { setAccessToken } from "@/api/client";
 import { getRefreshToken, setRefreshToken, clearRefreshToken } from "@/api/tokenStorage";
@@ -11,6 +12,7 @@ const PROFILE_KEY = "yulo_partner_profile";
 const PartnerAuthContext = createContext(null);
 
 export function PartnerAuthProvider({ children }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [pendingPhone, setPendingPhone] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -72,6 +74,11 @@ export function PartnerAuthProvider({ children }) {
           phone: pendingPhone,
           otp,
         });
+        // Query cache is keyed by fixed keys like ["partner", "onboarding", "status"], not by
+        // partner id — without clearing here, a fresh sign-in reuses whatever the *previous*
+        // signed-in partner left cached (up to the 60s staleTime in App.js) and briefly shows
+        // their onboarding/training data instead of refetching for the new partner.
+        queryClient.clear();
         setAccessToken(accessToken);
         await setRefreshToken(refreshToken);
         setUser(partner);
@@ -80,7 +87,7 @@ export function PartnerAuthProvider({ children }) {
         setLoading(false);
       }
     },
-    [pendingPhone],
+    [pendingPhone, queryClient],
   );
 
   const logout = useCallback(async () => {
@@ -97,10 +104,11 @@ export function PartnerAuthProvider({ children }) {
     stopLocationPings();
     setAccessToken(null);
     await clearRefreshToken();
+    queryClient.clear();
     setUser(null);
     setPendingPhone(null);
     setDevOtp(null);
-  }, []);
+  }, [queryClient]);
 
   return (
     <PartnerAuthContext.Provider

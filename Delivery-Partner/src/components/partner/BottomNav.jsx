@@ -5,12 +5,13 @@ import { useNavigation, useNavigationState } from "@react-navigation/native";
 import { cn } from "@/lib/utils";
 import Text from "@/components/ui/Text";
 
-// OrdersIncoming now needs a real order payload as params (no fixed veg/standard route split —
-// see RootNavigator.jsx) — IncomingOrder.jsx itself redirects back to Home if it's ever reached
-// with no order in params, which is exactly what happens tapping this tab with nothing pending.
+// Routes to OrdersTab, not OrdersIncoming directly — OrdersIncoming needs a real order payload as
+// params (pushed by the order_offer socket event or OrdersTab's own current-order check) and
+// only ever renders once it has one. OrdersTab owns the "nothing pending" empty state instead of
+// silently bouncing back to Home.
 const ITEMS = [
   { route: "HomeOffline", label: "Home", icon: Home },
-  { route: "OrdersIncoming", label: "Orders", icon: Package },
+  { route: "OrdersTab", label: "Orders", icon: Package },
   { route: "Earnings", label: "Earn", icon: Wallet },
   { route: "Profile", label: "Profile", icon: User },
 ];

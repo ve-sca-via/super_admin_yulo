@@ -128,6 +128,12 @@ export default function VerificationStatus() {
           <Button variant="secondary" size="sm" onPress={() => navigation.navigate("OnboardingDocuments")}>
             View uploaded documents
           </Button>
+          {/* Lets a partner mid-review leave this screen instead of being stuck between
+              "Contact support" and "View uploaded documents" — Home renders fine pre-approval,
+              it just won't have orders/earnings yet. */}
+          <Button variant="ghost" size="sm" onPress={() => navigation.navigate("HomeOffline")}>
+            Go to home
+          </Button>
         </View>
       </View>
     </Screen>

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import client from "@/api/client";
 import { DOCUMENT_TYPES } from "@/mocks/fixtures";
+import { usePartnerAuth } from "@/context/PartnerAuthContext";
 
 const OnboardingContext = createContext(null);
 
@@ -14,10 +15,15 @@ export const TRAINING_STATUS_KEY = ["partner", "training", "status"];
 // from GET /api/partner/training/status.
 export function OnboardingProvider({ children }) {
   const queryClient = useQueryClient();
+  const { isAuthenticated } = usePartnerAuth();
 
+  // OnboardingProvider wraps the whole onboarding stack (see RootNavigator.jsx), including
+  // PhoneEntry/OtpVerification, which render before login — without this gate, the query fires
+  // with no access token yet and the backend correctly 401s ("No token provided").
   const { data, isError: onboardingStatusError } = useQuery({
     queryKey: ONBOARDING_STATUS_KEY,
     queryFn: () => client.get("/partner/onboarding/status"),
+    enabled: isAuthenticated,
   });
 
   // Reshaped to the same {[type]: "uploaded"} map DocumentUploadHub.jsx already consumes, derived

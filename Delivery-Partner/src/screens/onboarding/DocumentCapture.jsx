@@ -85,7 +85,7 @@ export default function DocumentCapture() {
 
   return (
     <Screen>
-      <AppBar title={`Upload · ${label}`} />
+      <AppBar title={`Upload · ${label}`} onBack />
 
       <View className="w-full gap-4 px-6 pt-2">
         <View className="h-[392px] w-full items-center justify-center gap-[18px] rounded-[20px] bg-[#1a1a1a] p-6">

@@ -61,7 +61,7 @@ export default function SelfieCapture() {
 
   return (
     <Screen>
-      <AppBar title="Upload · Your selfie" />
+      <AppBar title="Upload · Your selfie" onBack />
 
       <View className="w-full gap-4 px-6 pt-2">
         <View className="h-[392px] w-full items-center justify-center gap-[18px] rounded-[20px] bg-[#1a1a1a] p-6">
