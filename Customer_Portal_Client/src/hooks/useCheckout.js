@@ -57,6 +57,22 @@ export function usePlaceOrder() {
   });
 }
 
+// Stands in for the Razorpay Checkout SDK, which isn't bundled yet (see Payment.jsx):
+// asks the server to mark an "online" order paid without a real gateway round trip.
+// Only works while the server has no Razorpay key configured — once it does, this
+// call fails and the real verify flow above is what's needed instead.
+export function useSimulatePayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (orderId) => client.post(`/orders/${orderId}/payment/simulate`),
+    onSuccess: (_, orderId) => {
+      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
 // Called with exactly what the Razorpay SDK's success callback handed over. If
 // this never lands (app killed, network lost) a server-side webhook reaches the
 // same end state, so a failure here isn't the last word on whether it was paid.

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { z } from 'zod';
 import Order from '../models/Order.js';
 import Restaurant from '../models/Restaurant.js';
@@ -178,6 +179,33 @@ export const checkout = asyncHandler(async (req, res) => {
   }
 
   sendSuccess(res, 201, 'Order placed', responseData);
+});
+
+// Stand-in for the real Razorpay Checkout + verify round trip while no gateway SDK is
+// bundled client-side (see Payment.jsx). Gated on the exact same signal
+// createRazorpayOrderIfNeeded already uses for "no gateway wired in" — once
+// RAZORPAY_KEY_ID is configured, this route stops working rather than silently
+// bypassing a real payment.
+export const simulatePayment = asyncHandler(async (req, res) => {
+  if (env.RAZORPAY_KEY_ID) {
+    throw new ApiError(400, 'NOT_SIMULATED', 'A real payment gateway is configured; simulation is unavailable');
+  }
+
+  const order = await Order.findOne({ _id: req.params.id, userId: req.user._id });
+  if (!order) throw new ApiError(404, 'NOT_FOUND', 'Order not found');
+  if (order.paymentMethod !== 'online') {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'This order was not placed for online payment');
+  }
+
+  // Idempotent: a retry after a dropped response re-confirms the same simulated payment
+  // rather than minting a second fake payment id.
+  if (order.paymentStatus !== 'paid') {
+    order.paymentStatus = 'paid';
+    order.razorpayPaymentId = `sim_${crypto.randomBytes(12).toString('hex')}`;
+    await order.save();
+  }
+
+  sendSuccess(res, 200, 'Payment simulated', { order });
 });
 
 export const verifyPayment = asyncHandler(async (req, res) => {

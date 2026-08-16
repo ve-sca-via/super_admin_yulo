@@ -80,6 +80,11 @@
           "speechRecognitionPermission": "Yulo Stores uses speech recognition to turn what you say into a search."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cfb8e587-7e59-4876-9659-d615f421d59e"
+      }
+    }
   }
 }

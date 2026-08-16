@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { cssInterop } from "nativewind";
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -20,6 +21,13 @@ import Animated, {
 
 import { DURATION, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import useResponsive from "@/hooks/useResponsive";
+
+// Reanimated builds this component at runtime, so NativeWind's compiler can't
+// know it takes a `className` — without this, the scrim and panel below silently
+// drop every Tailwind class the moment they also get an animated `style` prop,
+// which is exactly what both of them are.
+cssInterop(Animated.View, { className: "style" });
 
 // `Modal animationType="slide"` moves the entire modal container, which on a
 // transparent modal means the dim backdrop slides up from the bottom with the
@@ -60,6 +68,7 @@ export default function BottomSheet({
   scrimClassName = "bg-black/50",
 }) {
   const insets = useSafeAreaInsets();
+  const { contentWidth } = useResponsive();
   const { height: windowHeight } = useWindowDimensions();
   const reduced = useReducedMotion();
 
@@ -160,7 +169,10 @@ export default function BottomSheet({
 
         <Animated.View
           onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)}
-          style={[{ paddingBottom: insets.bottom + 24 }, panelStyle]}
+          style={[
+            { paddingBottom: insets.bottom + 24, width: contentWidth, alignSelf: "center" },
+            panelStyle,
+          ]}
           className={cn("mt-auto rounded-t-3xl bg-card px-6 pt-3", className)}
         >
           <GestureDetector gesture={pan}>

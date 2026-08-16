@@ -30,8 +30,13 @@ export default function OrderPlaced({ navigation, route }) {
   //
   // `orderId` travels with it: the tracking screens fetch by id, and without it
   // they have no order to follow.
+  //
+  // `replace`, not `navigate`: this screen has nothing left to confirm once
+  // tracking opens, so it comes out of the stack the same way Payment took
+  // checkout out of it. Left as a push, the tracking screen's back arrow landed
+  // on "Order placed!" instead of the feed.
   const track = () =>
-    navigation.navigate(vegFleet ? "FleetSearch" : "Tracking", { orderId, restaurantName });
+    navigation.replace(vegFleet ? "FleetSearch" : "Tracking", { orderId, restaurantName });
 
   return (
     <Screen edges={["top"]}>

@@ -13,6 +13,7 @@ import PopularSearchGrid from "@/components/search/PopularSearchGrid";
 import RecentSearchList from "@/components/search/RecentSearchList";
 import SearchSuggestionList from "@/components/search/SearchSuggestionList";
 import SearchTopBar from "@/components/search/SearchTopBar";
+import { formatImageUrl } from "@/api/config";
 
 // Stand-ins for a restaurant or dish the API returned without a thumbnail.
 const cartRestaurant = require("@/assets/home/cart-restaurant-avatar.png");
@@ -63,7 +64,7 @@ export default function Search({ navigation, route }) {
           // as a dot rather than the row being hidden.
           veg: result.foodType ? result.foodType === "veg" : null,
           image: result.thumbnailUrl
-            ? { uri: result.thumbnailUrl }
+            ? { uri: formatImageUrl(result.thumbnailUrl) }
             : result.type === "restaurant"
               ? cartRestaurant
               : dishBiryani,

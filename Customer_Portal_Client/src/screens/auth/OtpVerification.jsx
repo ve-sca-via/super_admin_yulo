@@ -59,13 +59,26 @@ export default function OtpVerification({ onNext }) {
     if (value.length === OTP_LENGTH) handleVerify(value);
   };
 
-  const handleResend = () => {
-    if (secondsLeft > 0) return;
+  // A resend that failed used to look exactly like one that worked — the
+  // countdown restarted and nothing was said, leaving the customer waiting on an
+  // SMS that was never sent. The timer only restarts once the request lands, and
+  // a failure puts the link back so they can try again immediately.
+  const handleResend = async () => {
+    if (secondsLeft > 0 || loading) return;
     setOtp("");
     setError("");
-    setSecondsLeft(RESEND_SECONDS);
-    setResendKey((current) => current + 1);
-    requestOtp(pendingPhone);
+
+    try {
+      await requestOtp(pendingPhone);
+      setSecondsLeft(RESEND_SECONDS);
+      setResendKey((current) => current + 1);
+    } catch (resendError) {
+      setError(
+        resendError.code === "RATE_LIMITED"
+          ? "Too many attempts. Please wait a few minutes and try again."
+          : (resendError.message ?? "Couldn't resend the code. Please try again."),
+      );
+    }
   };
 
   return (
@@ -100,7 +113,7 @@ export default function OtpVerification({ onNext }) {
 
           <Pressable
             onPress={handleResend}
-            disabled={secondsLeft > 0}
+            disabled={secondsLeft > 0 || loading}
             hitSlop={8}
             className="mt-6 items-center"
           >
@@ -111,10 +124,37 @@ export default function OtpVerification({ onNext }) {
             </Text>
           </Pressable>
 
-          {__DEV__ && devOtp ? (
-            <Text className="mt-4 text-center font-jakarta text-[12px] text-muted-foreground">
-              Dev mode — use code {devOtp}
-            </Text>
+          {/* The only route a code has to the customer right now: no SMS provider
+              is wired up anywhere, so the server echoes the OTP back in the send
+              response — and only ever when it is NOT running in production (see
+              services/otp.service.js).
+
+              That server-side gate is the real one, so this follows it rather
+              than `__DEV__`. A release APK pointed at a development server is
+              precisely the case that needs the code shown, and `__DEV__` is
+              false in a release build — which left the OTP screen impossible to
+              get past on an installed APK, with no SMS coming and no code on
+              screen. Against a genuine production server no `devOtp` is sent and
+              this renders nothing, exactly as before. */}
+          {devOtp ? (
+            <Pressable
+              onPress={() => handleChange(devOtp)}
+              className="mt-5 items-center rounded-2xl border border-dashed border-border-strong bg-muted px-4 py-3"
+              accessibilityRole="button"
+              accessibilityLabel={`Use test code ${devOtp.split("").join(" ")}`}
+            >
+              <Text className="font-jakarta text-[12px] leading-[17px] text-muted-foreground">
+                No SMS provider configured — test code
+              </Text>
+
+              <Text className="mt-1 font-jakarta-extrabold text-[22px] leading-[28px] tracking-[6px] text-foreground">
+                {devOtp}
+              </Text>
+
+              <Text className="mt-0.5 font-jakarta text-[11px] leading-[16px] text-muted-foreground">
+                Tap to fill
+              </Text>
+            </Pressable>
           ) : null}
         </View>
 

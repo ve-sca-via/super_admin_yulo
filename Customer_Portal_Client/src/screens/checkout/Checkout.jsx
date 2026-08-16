@@ -13,7 +13,7 @@ import {
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { toDisplayAddress, useCustomerAuth } from "@/context/CustomerAuthContext";
 import { useFeed } from "@/context/FeedContext";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -32,6 +32,7 @@ import { formatPrice } from "@/data/menu";
 import { accentFor } from "@/lib/accent";
 import { cn } from "@/lib/utils";
 import { useCheckoutSummary } from "@/hooks/useCheckout";
+import { formatImageUrl } from "@/api/config";
 
 // Room under the policy note for the pay bar, which is taller than the other
 // screens' because it carries the payment method above the button.
@@ -123,7 +124,9 @@ export default function Checkout({ navigation }) {
         name: item.name,
         price: item.effectivePrice ?? item.sellingPrice,
         veg: item.foodType === "veg",
-        image: item.image ? { uri: item.image } : null,
+        // Server-relative upload paths can't be resolved by <Image source> on
+        // their own — same treatment every other image surface gives them.
+        image: item.image ? { uri: formatImageUrl(item.image) } : null,
       })),
     }];
   }, [summary]);
@@ -182,7 +185,7 @@ export default function Checkout({ navigation }) {
   // The order is placed against the *default* saved address — that's what
   // `POST /orders/checkout` falls back to and what the summary already resolved,
   // so showing anything else here would promise a delivery the server won't make.
-  const deliveryAddress = summary?.address ?? selectedAddress;
+  const deliveryAddress = toDisplayAddress(summary?.address) ?? selectedAddress;
 
   const openMenu = () =>
     navigation.navigate("Menu", {

@@ -20,6 +20,26 @@ export function useOrders() {
   });
 }
 
+// Every status an order can be in before it's off the customer's hands —
+// mirrors `Order.status` in the schema minus the two terminal ones. Orders come
+// back newest first, so the first match is the one still moving.
+const ACTIVE_ORDER_STATUSES = ["placed", "confirmed", "preparing", "ready", "out_for_delivery"];
+
+// Powers the home feed's "your order is on the way" bar: the one order, if any,
+// still between placed and delivered. Reuses the `useOrders` cache rather than
+// its own query, so the socket-driven invalidation the tracking screen already
+// does (`order_status_updated` → `["orders"]`) is what keeps this current too.
+export function useActiveOrder() {
+  const { data: orders, isLoading } = useOrders();
+
+  const order = useMemo(
+    () => orders?.find((order) => ACTIVE_ORDER_STATUSES.includes(order.status)) ?? null,
+    [orders],
+  );
+
+  return { data: order, isLoading };
+}
+
 export function useOrderDetails(orderId) {
   return useQuery({
     queryKey: ["order", orderId],
@@ -35,26 +55,27 @@ export function useOrderDetails(orderId) {
 // the ["restaurant", id] cache with the menu screen, so a history of ten orders
 // from one place is a single request.
 export function useRestaurantNames(restaurantIds = []) {
-  const uniqueIds = useMemo(
-    () => [...new Set(restaurantIds.map(String).filter(Boolean))],
-    [restaurantIds],
-  );
+  // Callers pass a freshly-mapped array on every render (`orders.map(o => …)`),
+  // so this is keyed on the ids themselves rather than the array's identity —
+  // otherwise nothing downstream of it ever memoises.
+  const idKey = restaurantIds.map(String).filter(Boolean).sort().join(",");
 
-  const results = useQueries({
+  const uniqueIds = useMemo(() => (idKey ? [...new Set(idKey.split(","))] : []), [idKey]);
+
+  // `combine` runs inside useQueries, so the map it builds is only recomputed
+  // when a query's data actually changes — returning a new object on every
+  // render made every consumer of this hook re-render with it.
+  return useQueries({
     queries: uniqueIds.map((id) => ({
       queryKey: ["restaurant", id],
       queryFn: () => client.get(`/restaurants/${id}`),
       staleTime: 10 * 60 * 1000,
     })),
+    combine: (results) =>
+      Object.fromEntries(
+        uniqueIds.map((id, index) => [id, results[index]?.data?.restaurant?.name ?? null]),
+      ),
   });
-
-  return useMemo(() => {
-    const byId = {};
-    uniqueIds.forEach((id, index) => {
-      byId[id] = results[index]?.data?.restaurant?.name ?? null;
-    });
-    return byId;
-  }, [uniqueIds, results]);
 }
 
 export function useReorder() {

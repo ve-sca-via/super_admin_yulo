@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import client from "@/api/client";
+import { formatImageUrl } from "@/api/config";
 
 // `GET /restaurants/:id/menu` returns categories → subCategories → items (note the
 // capital C — a lowercase `subcategories` silently loses every dish filed under a
@@ -45,15 +46,21 @@ function mapItem(item) {
   const price = item.effectivePrice ?? item.sellingPrice ?? 0;
   const mrp = item.discountedPrice != null && item.sellingPrice > price ? item.sellingPrice : null;
 
+  // `MenuItem.image` is a bare string that may be absolute (a seeded/CDN URL) or
+  // server-relative (`/uploads/…` from an owner upload). `<Image source>` can't
+  // resolve the relative form, so it goes through `formatImageUrl` — the same
+  // treatment the home feed and restaurant cards already give their images.
+  const photo = item.image ? { uri: formatImageUrl(item.image) } : null;
+
   const mapped = {
     id: item._id,
     name: item.name,
     description: item.description ?? "",
     price,
     mrp,
-    // A remote URL has to be wrapped for <Image source>; a dish with no photo
-    // stays null and the cards draw their tinted fallback tile for it.
-    image: item.image ? { uri: item.image } : null,
+    // A dish with no photo stays null and the cards draw their tinted fallback
+    // tile for it.
+    image: photo,
     veg: item.foodType === "veg",
     foodType: item.foodType,
     tag: item.badges?.includes("bestseller") ? "Bestseller" : undefined,
@@ -64,7 +71,7 @@ function mapItem(item) {
     mapped.detail = {
       badge: item.badges?.includes("bestseller") ? "Highly reordered" : undefined,
       about: item.description ?? "",
-      image: item.image ? { uri: item.image } : null,
+      image: photo,
       choices,
     };
   } else if (choices.length || addOns.length) {

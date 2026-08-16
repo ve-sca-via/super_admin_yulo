@@ -20,7 +20,9 @@ const CustomerAuthContext = createContext(null);
 // Address labels are a fixed set server-side ("home" | "work" | "other"); anything
 // the customer types lands in `customLabel`. The list screens want one display
 // string, so the two collapse here rather than in every consumer.
-function toDisplayAddress(address) {
+export function toDisplayAddress(address) {
+  if (!address) return null;
+
   const label = address.customLabel?.trim()
     ? address.customLabel.trim()
     : typeof address.label === "string" && address.label.length
@@ -221,10 +223,16 @@ export function CustomerAuthProvider({ children }) {
     ({ label, line, customLabel = "", city, state, pincode, coords }) => {
       const known = ["home", "work", "other"];
       const normalised = String(label ?? "other").toLowerCase();
+      const resolvedLabel = known.includes(normalised) ? normalised : "other";
+      // The server rejects an empty-but-present customLabel (it's optional, not
+      // nullable), and it's only ever meaningful for "other" — so drop the key
+      // entirely rather than sending "" for home/work or an unfilled other.
+      const resolvedCustomLabel =
+        resolvedLabel === "other" ? (customLabel || (known.includes(normalised) ? "" : label) || "") : "";
 
       return addAddressMutation.mutateAsync({
-        label: known.includes(normalised) ? normalised : "other",
-        customLabel: known.includes(normalised) ? customLabel : (customLabel || label || ""),
+        label: resolvedLabel,
+        ...(resolvedCustomLabel ? { customLabel: resolvedCustomLabel } : {}),
         street: line,
         city: city || deliveryLocation?.city || "Bangalore",
         state: state || "Karnataka",

@@ -9,10 +9,46 @@ import Text from "@/components/ui/Text";
 import Button from "@/components/ui/Button";
 import BackButton from "@/components/customer/BackButton";
 
+// The device geocoder (Play services / Apple's) is unavailable on most
+// emulators and some devices, and resolves silently to nothing rather than
+// throwing. Nominatim needs no API key, which is what keeps this a fallback
+// rather than the primary lookup — see CUSTOMER_PORTAL_API.md's "no
+// server-side geocoding" note for why an on-device-first approach was chosen.
+async function reverseGeocodeViaNominatim(latitude, longitude) {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const address = data?.address ?? {};
+    const label = [
+      address.road || address.suburb || address.neighbourhood,
+      address.city || address.town || address.village,
+      address.state,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    if (!label) return null;
+
+    return {
+      label,
+      city: address.city || address.town || address.village || null,
+      pincode: address.postcode || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function LocationSetup({ onNext }) {
-  const { setDeliveryLocation } = useCustomerAuth();
+  const { deliveryLocation, setDeliveryLocation } = useCustomerAuth();
   const inputRef = useRef(null);
-  const [query, setQuery] = useState("");
+  // Reopening this screen to change an existing address should show that
+  // address as editable text, not a blank field the GPS lookup is about to
+  // overwrite.
+  const [query, setQuery] = useState(deliveryLocation?.label ?? "");
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,16 +92,25 @@ export default function LocationSetup({ onNext }) {
             .filter(Boolean)
             .join(", ")
         : "";
+
+      // The device geocoder came back with nothing (common on emulators) —
+      // try a network lookup before giving up and showing raw coordinates.
+      const fallback = geocodedLabel
+        ? null
+        : await reverseGeocodeViaNominatim(position.coords.latitude, position.coords.longitude);
+
       const label =
-        geocodedLabel || `Near ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
+        geocodedLabel ||
+        fallback?.label ||
+        `Near ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
 
       // Only latitude/longitude are kept: the rest of the GeolocationPosition
       // (accuracy, heading, speed, a timestamp) is a snapshot of one moment and
       // has no meaning once it's been persisted and reloaded days later.
       setDeliveryLocation({
         label,
-        city: place?.city ?? null,
-        pincode: place?.postalCode ?? null,
+        city: place?.city ?? fallback?.city ?? null,
+        pincode: place?.postalCode ?? fallback?.pincode ?? null,
         coords: {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -81,9 +126,12 @@ export default function LocationSetup({ onNext }) {
 
   // Request the location fix the moment the screen opens rather than waiting
   // on a tap - the button below stays as the retry path if the user dismisses
-  // the permission prompt or it fails.
+  // the permission prompt or it fails. Only for first-time setup, though:
+  // once a delivery address exists, the screen is being reopened to change
+  // it, and auto-firing GPS here would silently overwrite/re-navigate away
+  // from whatever the user is about to type.
   useEffect(() => {
-    handleUseCurrentLocation();
+    if (!deliveryLocation) handleUseCurrentLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

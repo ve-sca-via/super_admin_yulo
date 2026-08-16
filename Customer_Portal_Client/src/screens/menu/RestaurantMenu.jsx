@@ -18,6 +18,7 @@ import RestaurantInfoCard from "@/components/menu/RestaurantInfoCard";
 import { cartLineFor } from "@/data/cart";
 import { DIETS, filterSections } from "@/data/menu";
 import { accentFor } from "@/lib/accent";
+import { cn } from "@/lib/utils";
 
 // Room under the last section for whichever floating controls are up.
 const SCROLL_PADDING = { plain: 96, withCart: 172 };
@@ -160,7 +161,12 @@ export default function RestaurantMenu({ navigation, menu, restaurantName }) {
   // with neither goes straight into the cart.
   const startAdd = (item) => {
     if (item.detail) {
-      navigation?.navigate("Item", { restaurantName, itemId: item.id });
+      // `restaurantId` has to travel with it: the item page checks it against
+      // the open cart to raise the discard prompt *before* the add. Without it
+      // that guard was silently skipped here (it was passed on the compact menu
+      // and from checkout), so a dish from a second storefront only failed once
+      // the server rejected it.
+      navigation?.navigate("Item", { restaurantId: menu.id, restaurantName, itemId: item.id });
       return;
     }
 
@@ -273,41 +279,47 @@ export default function RestaurantMenu({ navigation, menu, restaurantName }) {
         onDiscard={discardCart}
       />
 
-      <View className={cart ? "absolute inset-x-0 bottom-[78px]" : "absolute inset-x-0 bottom-4"}>
-        <Button
-          onPress={() => setIndexOpen(true)}
-          style={{ backgroundColor: accent.ribbon }}
-          className="self-center px-6 shadow-lg shadow-black/30"
-          accessibilityLabel="Browse menu sections"
-        >
-          <View className="flex-row items-center gap-2">
-            <List size={18} color="#FFFFFF" />
-            <Text className="font-jakarta-bold text-[15px] leading-[20px] text-white">Menu</Text>
-          </View>
-        </Button>
-      </View>
+      {/* One bottom-anchored stack, not two independently-positioned floating
+          pills — stacking them via flex + margin keeps the gap between the
+          jump button and the cart bar correct even if either one's height
+          changes later, instead of two hand-tuned pixel offsets drifting out
+          of sync with each other. */}
+      <View className={cn("absolute inset-x-[7px]", cart && !cartBarDismissed ? "bottom-2" : "bottom-4")}>
+        <View className={cn("items-center", cart && !cartBarDismissed && "mb-3")}>
+          <Button
+            onPress={() => setIndexOpen(true)}
+            style={{ backgroundColor: accent.ribbon }}
+            className="px-6 shadow-lg shadow-black/30"
+            accessibilityLabel="Browse menu sections"
+          >
+            <View className="flex-row items-center gap-2">
+              <List size={18} color="#FFFFFF" />
+              <Text className="font-jakarta-bold text-[15px] leading-[20px] text-white">Menu</Text>
+            </View>
+          </Button>
+        </View>
 
-      {cart && !cartBarDismissed ? (
-        <StickyCartBar
-          className="absolute inset-x-[7px] bottom-2"
-          restaurantName={cart.restaurantName}
-          restaurantImage={menu.hero}
-          itemCount={cart.itemCount}
-          vegOnly={vegOnly}
-          // Already on this storefront's menu — the link only has somewhere to
-          // go when the open cart belongs to a different one.
-          onViewMenu={() =>
-            String(cart.restaurantId) === String(menu.id)
-              ? scrollRef.current?.scrollTo({ y: 0, animated: true })
-              : navigation?.push("Menu", {
-                  restaurantId: cart.restaurantId,
-                  restaurantName: cart.restaurantName,
-                })
-          }
-          onViewCart={() => navigation?.navigate("Cart")}
-          onDismiss={() => setCartBarDismissed(true)}
-        />
-      ) : null}
+        {cart && !cartBarDismissed ? (
+          <StickyCartBar
+            restaurantName={cart.restaurantName}
+            restaurantImage={menu.hero}
+            itemCount={cart.itemCount}
+            vegOnly={vegOnly}
+            // Already on this storefront's menu — the link only has somewhere to
+            // go when the open cart belongs to a different one.
+            onViewMenu={() =>
+              String(cart.restaurantId) === String(menu.id)
+                ? scrollRef.current?.scrollTo({ y: 0, animated: true })
+                : navigation?.push("Menu", {
+                    restaurantId: cart.restaurantId,
+                    restaurantName: cart.restaurantName,
+                  })
+            }
+            onViewCart={() => navigation?.navigate("Cart")}
+            onDismiss={() => setCartBarDismissed(true)}
+          />
+        ) : null}
+      </View>
     </Screen>
   );
 }

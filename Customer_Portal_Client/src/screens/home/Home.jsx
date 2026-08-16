@@ -5,9 +5,11 @@ import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
 import { useFeed } from "@/context/FeedContext";
 import { useHomeFeed } from "@/hooks/useHomeFeed";
+import { useActiveOrder, useOrderSocket, useRestaurantNames } from "@/hooks/useOrders";
 import useResponsive from "@/hooks/useResponsive";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
+import ActiveOrderBar from "@/components/home/ActiveOrderBar";
 import DiscardCartDialog from "@/components/cart/DiscardCartDialog";
 import CategorySwitcher from "@/components/home/CategorySwitcher";
 import DishCategoryRow from "@/components/home/DishCategoryRow";
@@ -21,6 +23,7 @@ import SectionHeading from "@/components/home/SectionHeading";
 import StickyCartBar from "@/components/home/StickyCartBar";
 import VegModeBanner from "@/components/home/VegModeBanner";
 import VegModePopover from "@/components/home/VegModePopover";
+import { accentFor } from "@/lib/accent";
 import { enter } from "@/lib/motion";
 import { toRestaurantCard } from "@/lib/restaurant";
 import { formatImageUrl } from "@/api/config";
@@ -120,6 +123,18 @@ export default function Home({ navigation }) {
   };
 
   const { data: feedData, isLoading, isError, refetch, isRefetching } = useHomeFeed();
+
+  // The order still between placed and delivered, if there is one — this is
+  // what turns into the "Track" bar over the bottom nav. The socket keeps it
+  // current while the customer is looking at the feed instead of tracking.
+  const { data: activeOrder } = useActiveOrder();
+  useOrderSocket(activeOrder?._id);
+  const activeOrderRestaurantNames = useRestaurantNames(
+    activeOrder ? [activeOrder.restaurantId] : [],
+  );
+  const activeOrderRestaurantName = activeOrder
+    ? activeOrderRestaurantNames[String(activeOrder.restaurantId)]
+    : null;
 
   const dishCategories = useMemo(
     () =>
@@ -328,31 +343,45 @@ export default function Home({ navigation }) {
         onDiscard={discardCart}
       />
 
-      {/* The bar positions itself rather than sitting inside a wrapper: it owns
-          its slide-out, and an exiting animation is skipped if the node that
-          unmounts is a plain parent above it. */}
-      {cart && !cartBarDismissed ? (
-        <StickyCartBar
-          className="absolute inset-x-[7px] bottom-[78px]"
-          restaurantName={cart.restaurantName}
-          restaurantImage={cartRestaurant}
-          itemCount={cart.itemCount}
-          vegOnly={vegOnly}
-          onViewMenu={() => openMenu({ id: cart.restaurantId, name: cart.restaurantName })}
-          onViewCart={() => navigation?.navigate("Cart")}
-          onDismiss={() => setCartBarDismissed(true)}
-        />
-      ) : null}
+      {/* One bottom-anchored stack instead of two independently-guessed
+          absolute offsets: those drifted close enough to overlap the cart
+          bar and the bottom nav. `mb-3` on the cart bar guarantees a clear
+          gap above the nav no matter how either one's height changes,
+          rather than two pixel values that both have to stay in sync. */}
+      <View className="absolute inset-x-0 bottom-2">
+        {activeOrder ? (
+          <ActiveOrderBar
+            className="mx-[7px] mb-3"
+            restaurantName={activeOrderRestaurantName}
+            status={activeOrder.status}
+            accent={accentFor(vegOnly)}
+            onPress={() => navigation?.navigate("Tracking", { orderId: activeOrder._id })}
+          />
+        ) : null}
 
-      <View className="absolute inset-x-4 bottom-2">
-        {/* History is a screen of its own, not a second feed — it navigates
-            away instead of switching the tile underneath. */}
-        <HomeBottomNav
-          value={tab}
-          vegOnly={vegOnly}
-          onChange={(key) => (key === "history" ? navigation?.navigate("Orders") : setTab(key))}
-          onScan={() => navigation?.navigate("ScanQr")}
-        />
+        {cart && !cartBarDismissed ? (
+          <StickyCartBar
+            className="mx-[7px] mb-3"
+            restaurantName={cart.restaurantName}
+            restaurantImage={cartRestaurant}
+            itemCount={cart.itemCount}
+            vegOnly={vegOnly}
+            onViewMenu={() => openMenu({ id: cart.restaurantId, name: cart.restaurantName })}
+            onViewCart={() => navigation?.navigate("Cart")}
+            onDismiss={() => setCartBarDismissed(true)}
+          />
+        ) : null}
+
+        <View className="mx-4">
+          {/* History is a screen of its own, not a second feed — it navigates
+              away instead of switching the tile underneath. */}
+          <HomeBottomNav
+            value={tab}
+            vegOnly={vegOnly}
+            onChange={(key) => (key === "history" ? navigation?.navigate("Orders") : setTab(key))}
+            onScan={() => navigation?.navigate("ScanQr")}
+          />
+        </View>
       </View>
     </Screen>
   );

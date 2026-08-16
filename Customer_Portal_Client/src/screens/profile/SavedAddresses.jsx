@@ -83,7 +83,11 @@ export default function SavedAddresses() {
                 address={address}
                 accent={accent}
                 selected={address.id === selectedAddress?.id}
-                onPress={() => selectAddress(address.id)}
+                onPress={() =>
+                  selectAddress(address.id).catch((error) =>
+                    Alert.alert("Couldn't select that address", error.message),
+                  )
+                }
                 onDelete={() => confirmDelete(address)}
               />
             ))

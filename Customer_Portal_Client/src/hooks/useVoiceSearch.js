@@ -30,19 +30,36 @@ export default function useVoiceSearch({ onResult, lang = "en-US" } = {}) {
     setError("Couldn't hear that — try again.");
   });
 
+  // Plenty of Android handsets ship without a speech recognition service at all
+  // (no Google app, or it's disabled), and both the permission request and
+  // `start` throw outright there rather than returning a refusal. Uncaught, that
+  // surfaced as an unhandled rejection and a mic button that did nothing at all
+  // — the customer got no explanation and `listening` never came back down.
   const start = useCallback(async () => {
     setError(null);
 
-    const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!permission.granted) {
-      setError("Microphone access is needed for voice search.");
-      return;
-    }
+    try {
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permission.granted) {
+        setError("Microphone access is needed for voice search.");
+        return;
+      }
 
-    ExpoSpeechRecognitionModule.start({ lang, interimResults: true, continuous: false });
+      ExpoSpeechRecognitionModule.start({ lang, interimResults: true, continuous: false });
+    } catch {
+      setListening(false);
+      setError("Voice search isn't available on this device. Type your search instead.");
+    }
   }, [lang]);
 
-  const stop = useCallback(() => ExpoSpeechRecognitionModule.stop(), []);
+  const stop = useCallback(() => {
+    try {
+      ExpoSpeechRecognitionModule.stop();
+    } catch {
+      // Stopping a recognizer that never started isn't worth surfacing.
+    }
+    setListening(false);
+  }, []);
 
   const toggle = useCallback(() => {
     if (listening) stop();

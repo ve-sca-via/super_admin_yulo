@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import mongooseLeanVirtuals from 'mongoose-lean-virtuals';
 
 const menuItemSchema = new mongoose.Schema(
   {
@@ -36,6 +37,10 @@ menuItemSchema.virtual('effectivePrice').get(function () {
 
 menuItemSchema.set('toJSON', { virtuals: true });
 menuItemSchema.set('toObject', { virtuals: true });
+// Callers across cart/order/menu services fetch this model with `.lean({ virtuals: true })`
+// expecting `effectivePrice` to come along — plain `.lean()` skips virtuals entirely, so
+// without this plugin that option silently does nothing and effectivePrice is undefined.
+menuItemSchema.plugin(mongooseLeanVirtuals);
 
 menuItemSchema.index({ restaurantId: 1, categoryId: 1 });
 menuItemSchema.index({ restaurantId: 1, isAvailable: 1 });
