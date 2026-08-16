@@ -18,9 +18,27 @@ export const notifyService = {
       items: order.items,
       specialInstructions: order.specialInstructions,
       subtotal: order.subtotal,
+      // Restaurant-fulfillment toggles (screen 19) — the kitchen/restaurant needs these,
+      // not the delivery partner (deliveryInstructions below is the partner-facing one).
+      cookingRequests: order.cookingRequests,
+      extraCutlery: order.extraCutlery,
     };
     io.to(`restaurant:${order.restaurantId}`).emit('new_order', payload);
     io.to(`kitchen:${order.restaurantId}`).emit('new_order', payload);
+  },
+
+  // Fired whenever Order.vegFleetAssignmentStatus changes (order placement, keep-waiting,
+  // fallback, the auto-extend sweep, or a partner accepting) so the customer's tracking
+  // screen doesn't have to poll GET /api/orders/:id/veg-fleet/status.
+  vegFleetStatusUpdated(order) {
+    const io = getIO();
+    io.to(`order:${order._id}`).emit('veg_fleet_status_updated', {
+      orderId: order._id,
+      status: order.vegFleetAssignmentStatus,
+      remainingSeconds: order.vegFleetSearchDeadline
+        ? Math.max(0, Math.round((order.vegFleetSearchDeadline.getTime() - Date.now()) / 1000))
+        : null,
+    });
   },
 
   orderStatusUpdated(order) {

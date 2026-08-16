@@ -78,7 +78,12 @@ export const updateOrderStatus = async ({ orderId, currentStatus, newStatus, sta
 
   if (newStatus === 'delivered' && order.type !== 'dine_in') {
     order.deliveredAt = new Date();
-    if (order.paymentStatus === 'pending') order.paymentStatus = 'paid';
+    // 'pending_cod' (checkout-flow COD orders, Prompt 11) means the same thing 'pending'
+    // used to mean here — cash to be collected, now treated as settled on delivery. Still
+    // covers plain 'pending' too, for takeaway/the raw-items POST /api/orders path.
+    if (order.paymentStatus === 'pending' || order.paymentStatus === 'pending_cod') {
+      order.paymentStatus = 'paid';
+    }
     if (order.type === 'delivery' && order.deliveryAssignment?.status !== 'failed') {
       order.deliveryAssignment.status = 'delivered';
     }

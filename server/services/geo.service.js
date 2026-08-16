@@ -42,3 +42,13 @@ export const LOCATION_FRESHNESS_SECONDS = 120;
 export const isLocationFresh = (currentLocationUpdatedAt) =>
   Boolean(currentLocationUpdatedAt) &&
   new Date(currentLocationUpdatedAt).getTime() >= Date.now() - LOCATION_FRESHNESS_SECONDS * 1000;
+
+// Straight-line-distance/avg-speed estimate for the customer tracking screen's
+// "Arriving in X mins" — same "no real routing/ETA engine" reasoning as the rest of this
+// file (see the header comment); an assumed flat urban two-wheeler speed, not a
+// traffic-aware prediction. `Math.max(1, ...)` avoids ever showing "0 mins" for a very
+// short remaining distance.
+const AVERAGE_DELIVERY_SPEED_KMH = 20;
+
+export const estimateEtaMinutes = (distanceKm) =>
+  distanceKm != null ? Math.max(1, Math.round((distanceKm / AVERAGE_DELIVERY_SPEED_KMH) * 60)) : null;

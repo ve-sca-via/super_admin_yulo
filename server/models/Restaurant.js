@@ -83,6 +83,17 @@ const restaurantSchema = new mongoose.Schema(
     },
     isActive: { type: Boolean, default: true },
     isVerified: { type: Boolean, default: false },
+    // Menu-composition flag ("every dish here is vegetarian") — distinct from
+    // vegFleetAvailable below, which is about delivery logistics, not what's on the menu.
+    isPureVeg: { type: Boolean, default: false },
+    // Whether ANY delivery partner covering this restaurant's area carries a dedicated
+    // veg-only fleet bag (DeliveryPartner.fleetType === 'veg'). Manually toggled by the
+    // owner/admin for now — computing this live from actual partner coverage is
+    // prompt 11's job, once checkout needs a real-time (not just advertised) answer.
+    vegFleetAvailable: { type: Boolean, default: false },
+    // Free-form tags for restaurant cards (e.g. "great_offers") — unused by any endpoint
+    // yet; populated once search/home (prompts 7-8) have something to put here.
+    badges: [String],
     avgRating: { type: Number, default: 0, min: 0, max: 5 },
     totalRatings: { type: Number, default: 0 },
     approvalStatus: {

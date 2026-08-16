@@ -23,6 +23,11 @@ const discountSchema = new mongoose.Schema(
     startDate: { type: Date },
     endDate: { type: Date },
     status: { type: String, enum: ['draft', 'active', 'expired'], default: 'draft' },
+    // Opt-in flag for the customer home feed's banner (services/home.service.js) — still
+    // a normal per-restaurant discount underneath (restaurantId stays required); "featured"
+    // just means "eligible to surface as the Home banner" when active and nearby, not a
+    // separate platform-wide discount type.
+    isFeatured: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

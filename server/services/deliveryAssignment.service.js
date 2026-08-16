@@ -5,8 +5,15 @@ import User from '../models/User.js';
 import { redis } from '../config/redis.js';
 import { maxConcurrentOrdersPerPartner, perDeliveryRate, offerWindowSeconds } from '../config/finance.config.js';
 import { getIO } from '../socket.js';
+import { notifyService } from './notify.service.js';
 import logger from '../utils/logger.js';
 import { computeDropKm, computePickupKm, isLocationFresh, LOCATION_FRESHNESS_SECONDS } from './geo.service.js';
+
+// How long a strict veg-fleet-only search runs before the customer is asked to decide
+// (screen 23) — matches that screen's ~3-minute countdown example. Set at order
+// placement (services/order.service.js's createOrderFromCart) and reset to this same
+// length by keepWaitingForVegFleet/sweepExpiredVegFleetSearches below.
+export const VEG_FLEET_SEARCH_WINDOW_MS = 3 * 60 * 1000;
 
 // A partner-facing app now exists (Delivery-Partner). Assignment works as a real-time offer,
 // not a silent write: the best eligible connected candidate gets an `order_offer` socket event
@@ -29,8 +36,14 @@ const formatAddress = (addr) => [addr?.street, addr?.city].filter(Boolean).join(
 // gets a fallback chance ranked by the original rating heuristic, so this is a strict improvement:
 // no candidate is ever silently excluded just because they haven't started sending location pings
 // (a realistic transitional state for a brand-new capability, not an edge case to ignore).
-const rankCandidates = async (restaurant) => {
+//
+// `requireFleetType` — when set (autoAssign passes 'veg' while an order's veg-fleet search is
+// still strictly 'searching', never once it's relaxed to 'fallback_any_partner') — restricts
+// candidates to that fleetType up front. Omitted entirely, behavior is byte-for-byte what it
+// was before veg-fleet existed: every active/approved partner is eligible, exactly as today.
+const rankCandidates = async (restaurant, { requireFleetType } = {}) => {
   const baseFilter = { status: 'active', verificationStatus: 'approved' };
+  if (requireFleetType) baseFilter.fleetType = requireFleetType;
 
   if (!restaurant?.location?.coordinates) {
     // No restaurant location on record — shouldn't normally happen (Restaurant.location is
@@ -78,10 +91,18 @@ export const buildOfferPayload = async (order, candidate) => {
     orderId: order._id,
     restaurantName: restaurant?.name ?? null,
     restaurantAddress: formatAddress(restaurant?.address),
-    // Reflects the PARTNER being offered this order, not the order itself — Order has no fleet
-    // concept of its own (no schema field for it); this app's veg/standard split is a property
-    // of which fleet the partner belongs to, not something the customer chose.
+    // fleetType reflects the PARTNER being offered this order (fixed per-partner, same on
+    // every offer they get) — separate from vegFleetOptIn/dedicatedBagRequired below,
+    // which reflect what THIS order asked for. Order.vegFleetOptIn now exists (this is
+    // that placeholder finally filled in — see rankCandidates), but a candidate's own
+    // fleetType is still never derived from the order; rankCandidates' requireFleetType
+    // is what connects the two, before a candidate ever reaches this payload.
     fleetType: candidate.fleetType,
+    vegFleetOptIn: order.vegFleetOptIn,
+    dedicatedBagRequired: order.dedicatedBagRequired,
+    // "Instructions for delivery partner" (screen 19) — cookingRequests/extraCutlery are
+    // restaurant-fulfillment toggles instead (see notify.service.js's newOrder payload).
+    deliveryInstructions: order.deliveryInstructions || '',
     pickupKm,
     dropKm,
     totalKm: pickupKm != null && dropKm != null ? Number((pickupKm + dropKm).toFixed(1)) : null,
@@ -115,7 +136,14 @@ export const autoAssign = async (order) => {
   const onlinePartnerIds = new Set(await redis.smembers('live:active_partners'));
 
   const restaurant = await Restaurant.findById(order.restaurantId).select('location delivery.radiusKm').lean();
-  const candidates = await rankCandidates(restaurant);
+
+  // Strictly veg-fleet-only while still 'searching' — once the customer (or the
+  // auto-extend sweep, which never does this itself) explicitly relaxes it via
+  // POST .../veg-fleet/fallback, vegFleetAssignmentStatus becomes 'fallback_any_partner'
+  // and this condition stops applying, same as a normal (non-veg-fleet) order from then on.
+  const requireFleetType =
+    order.vegFleetOptIn && order.vegFleetAssignmentStatus === 'searching' ? 'veg' : undefined;
+  const candidates = await rankCandidates(restaurant, { requireFleetType });
 
   for (const candidate of candidates) {
     const candidateId = candidate._id.toString();
@@ -160,6 +188,11 @@ export const autoAssign = async (order) => {
 
   // No eligible partner right now — leave unassigned. Never throw: this must not
   // block the kitchen's own status transition. Visible/reassignable by admin later.
+  // For a strict veg-fleet search this is expected and not an error state:
+  // vegFleetAssignmentStatus simply stays 'searching' (already set at order placement),
+  // and the individual-offer retry loop (sweepExpiredOffers, unchanged) keeps calling
+  // back in here on its normal cadence for as long as vegFleetSearchDeadline hasn't
+  // passed — see sweepExpiredVegFleetSearches below for what happens once it does.
   return null;
 };
 
@@ -209,6 +242,64 @@ export const sweepExpiredOffers = async () => {
       await expireAndReassign(order);
     } catch (err) {
       logger.error({ err, orderId: order._id }, 'Failed to expire/reassign stale offer');
+    }
+  }
+};
+
+// POST /api/orders/:id/veg-fleet/keep-waiting — resets the countdown, status stays
+// 'searching'. Also what the auto-extend sweep below calls when nobody acts before the
+// deadline (screen 23: "Auto-defaults to keep waiting").
+export const keepWaitingForVegFleet = async (order) => {
+  order.vegFleetSearchDeadline = new Date(Date.now() + VEG_FLEET_SEARCH_WINDOW_MS);
+  await order.save();
+  notifyService.vegFleetStatusUpdated(order);
+  return order;
+};
+
+// POST /api/orders/:id/veg-fleet/fallback — the customer's explicit "send any available
+// partner" choice. dedicatedBagRequired is deliberately left untouched (stays true): even
+// on fallback, screen 23 promises a sanitised, unbatched bag — this only relaxes WHICH
+// partner may be offered the order, not the hygiene guarantee itself.
+export const fallbackVegFleet = async (order) => {
+  order.vegFleetAssignmentStatus = 'fallback_any_partner';
+  order.vegFleetSearchDeadline = null;
+  await order.save();
+  notifyService.vegFleetStatusUpdated(order);
+
+  // Retry immediately with the now-relaxed constraint rather than waiting for the next
+  // sweep cycle — the customer just explicitly asked for any partner, so there's no
+  // reason to make them wait an extra ~5s for the next scheduled pass.
+  await autoAssign(order);
+  return order;
+};
+
+// Companion to sweepExpiredOffers above, run from the same setInterval in socket.js — no
+// new job scheduler. Does two things for every order still actively searching for a
+// veg-fleet partner with nothing currently in flight (excludes orders with a live
+// 'offered' state — sweepExpiredOffers already owns retrying those specifically, once
+// THAT offer expires):
+//   1. If the search deadline has passed with no assignment and no customer decision,
+//      auto-default to keep-waiting (extend the deadline) rather than relaxing to
+//      any-partner — matches screen 23's own copy exactly.
+//   2. Retry autoAssign regardless, so a veg-fleet partner coming online moments after
+//      the original (empty) candidate pool still gets offered this order well within the
+//      search window, not only once at the initial kitchen-confirm attempt.
+export const sweepExpiredVegFleetSearches = async () => {
+  const now = new Date();
+  const searching = await Order.find({
+    vegFleetAssignmentStatus: 'searching',
+    'deliveryAssignment.status': 'unassigned',
+    'deliveryAssignment.offerStatus': { $ne: 'offered' },
+  });
+
+  for (const order of searching) {
+    try {
+      if (order.vegFleetSearchDeadline && order.vegFleetSearchDeadline <= now) {
+        await keepWaitingForVegFleet(order);
+      }
+      await autoAssign(order);
+    } catch (err) {
+      logger.error({ err, orderId: order._id }, 'Failed to sweep veg-fleet search');
     }
   }
 };

@@ -3,8 +3,8 @@ import TableSession from '../models/TableSession.js';
 import Table from '../models/Table.js';
 import Order from '../models/Order.js';
 import Discount from '../models/Discount.js';
-import MenuItem from '../models/MenuItem.js';
 import Restaurant from '../models/Restaurant.js';
+import * as discountService from './discount.service.js';
 import { ApiError } from '../utils/ApiError.js';
 import { notifyService } from './notify.service.js';
 
@@ -104,39 +104,12 @@ export const applyDiscount = async ({ billId, discountCode, restaurantId }) => {
     throw new ApiError(404, 'NOT_FOUND', 'Bill not found');
   }
 
-  const discount = await Discount.findOne({
-    code: discountCode,
-    restaurantId,
-    status: 'active',
-  });
-  if (!discount) {
-    throw new ApiError(404, 'NOT_FOUND', 'Discount code not found or inactive');
-  }
+  const discount = await Discount.findOne({ code: discountCode, restaurantId });
+  // orderType: 'dine_in' — this is a new check (see discount.service.js's comment); a
+  // delivery-only discount now correctly gets rejected here instead of silently applying.
+  discountService.validateDiscountForOrder(discount, { subtotal: bill.subtotal, orderType: 'dine_in' });
 
-  const now = new Date();
-  if (now < discount.startDate || now > discount.endDate) {
-    throw new ApiError(400, 'DISCOUNT_EXPIRED', 'This offer has expired');
-  }
-
-  if (bill.subtotal < discount.minimumOrderValue) {
-    throw new ApiError(
-      400,
-      'DISCOUNT_MIN_VALUE',
-      `Minimum order value is ₹${discount.minimumOrderValue}`
-    );
-  }
-
-  let deduction = 0;
-  if (discount.type === 'percentage') {
-    deduction = bill.subtotal * (discount.percentage / 100);
-  } else if (discount.type === 'flat_amount') {
-    deduction = discount.flatAmount;
-  } else if (discount.type === 'free_item') {
-    const freeItem = await MenuItem.findById(discount.freeItemId).lean();
-    deduction = freeItem?.sellingPrice ?? 0;
-  } else if (discount.type === 'tablewise') {
-    deduction = discount.flatAmount;
-  }
+  const deduction = await discountService.computeDiscountAmount(discount, bill.subtotal);
 
   bill.discountsApplied.push({
     discountId: discount._id,

@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import User from '../models/User.js';
 import * as authService from '../services/auth.service.js';
+import * as otpService from '../services/otp.service.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -43,6 +44,56 @@ export const login = asyncHandler(async (req, res) => {
   res.cookie('refreshToken', refreshToken, REFRESH_COOKIE_OPTS);
 
   sendSuccess(res, 200, 'Login successful', { user, accessToken });
+});
+
+export const sendCustomerOtp = asyncHandler(async (req, res) => {
+  const { phone } = req.body;
+  const result = await otpService.requestOtp(phone);
+  sendSuccess(res, 200, 'OTP sent', result);
+});
+
+export const verifyCustomerOtp = asyncHandler(async (req, res) => {
+  const { phone, code, tosAccepted } = req.body;
+  await otpService.verifyOtp(phone, code);
+
+  let user = await User.findOne({ phone });
+  let isNewUser = false;
+
+  if (!user) {
+    // First touchpoint for a brand-new customer — just phone + verification state, same
+    // as controllers/partner/auth.controller.js's verifyOtpHandler. Name/email/profile are
+    // completed later via PATCH /api/users/me.
+    user = await User.create({
+      phone,
+      role: 'customer',
+      phoneVerifiedAt: new Date(),
+      tosAcceptedAt: tosAccepted ? new Date() : null,
+    });
+    isNewUser = true;
+  } else {
+    // A phone number is only ever meant to identify a customer account here — if this
+    // number is already attached to a restaurant_owner/admin record (both of which log
+    // in with email+password only), refuse rather than silently minting a token for a
+    // higher-privileged role off of phone possession alone.
+    if (user.role !== 'customer') {
+      throw new ApiError(403, 'FORBIDDEN', 'This phone number is linked to a different account type');
+    }
+    if (!user.isActive) {
+      throw new ApiError(401, 'ACCOUNT_SUSPENDED', 'This account has been deactivated');
+    }
+    user.phoneVerifiedAt = new Date();
+    if (tosAccepted && !user.tosAcceptedAt) user.tosAcceptedAt = new Date();
+    await user.save();
+  }
+
+  const { accessToken, refreshToken } = authService.generateTokens(user._id, user.role);
+  res.cookie('refreshToken', refreshToken, REFRESH_COOKIE_OPTS);
+
+  sendSuccess(res, isNewUser ? 201 : 200, isNewUser ? 'Account created' : 'Login successful', {
+    user,
+    accessToken,
+    isNewUser,
+  });
 });
 
 export const refresh = asyncHandler(async (req, res) => {

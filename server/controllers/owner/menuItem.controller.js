@@ -10,7 +10,9 @@ export const list = asyncHandler(async (req, res) => {
   sendSuccess(res, 200, 'Menu items', { items });
 });
 
-const parseIngredients = (raw) => {
+// Also used for `badges` — both are array fields arriving as a JSON-encoded string over
+// multipart/form-data (e.g. '["tomato","cream"]'), same as the rest of this form.
+const parseArrayField = (raw) => {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
   try { return JSON.parse(raw); } catch { return [raw]; }
@@ -18,7 +20,7 @@ const parseIngredients = (raw) => {
 
 export const create = asyncHandler(async (req, res) => {
   const { name, description, foodType, sellingPrice, discountedPrice, categoryId,
-    subCategoryId, prepTime, ingredients } = req.body;
+    subCategoryId, prepTime, ingredients, badges, vegVariantId } = req.body;
 
   const itemData = {
     restaurantId: req.restaurant._id,
@@ -30,7 +32,9 @@ export const create = asyncHandler(async (req, res) => {
     sellingPrice: Number(sellingPrice),
     discountedPrice: discountedPrice != null ? Number(discountedPrice) : null,
     prepTime: prepTime != null ? Number(prepTime) : undefined,
-    ingredients: parseIngredients(ingredients),
+    ingredients: parseArrayField(ingredients),
+    badges: parseArrayField(badges),
+    vegVariantId: vegVariantId || null,
   };
 
   let uploadedPublicId;
@@ -80,7 +84,9 @@ export const update = asyncHandler(async (req, res) => {
   if (updates.sellingPrice != null) updates.sellingPrice = Number(updates.sellingPrice);
   if (updates.discountedPrice != null) updates.discountedPrice = Number(updates.discountedPrice);
   if (updates.prepTime != null) updates.prepTime = Number(updates.prepTime);
-  if (updates.ingredients != null) updates.ingredients = parseIngredients(updates.ingredients);
+  if (updates.ingredients != null) updates.ingredients = parseArrayField(updates.ingredients);
+  if (updates.badges != null) updates.badges = parseArrayField(updates.badges);
+  if (updates.vegVariantId === '') updates.vegVariantId = null;
   let uploadedPublicId;
 
   if (req.file) {
