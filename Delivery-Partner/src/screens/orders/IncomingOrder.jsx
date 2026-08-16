@@ -30,9 +30,9 @@ export default function IncomingOrder() {
   const { params } = useRoute();
   // `params` IS the real order object now (orderId, restaurantName, fleetType, ... — the exact
   // shape server/services/deliveryAssignment.service.js's buildOfferPayload produces), pushed
-  // either by the order_offer socket event or a GET /partner/orders/current resume. Reached with
-  // no order at all (e.g. the bottom-nav Orders tab tapped with nothing pending) — bail to Home
-  // rather than crash on order.fleetType below.
+  // either by the order_offer socket event or a GET /partner/orders/current resume (Home.jsx or
+  // OrdersTab.jsx). Reached with no order at all shouldn't happen via normal navigation anymore,
+  // but bail to Home rather than crash on order.fleetType below if it ever is.
   const order = params?.orderId ? params : null;
 
   const [secondsLeft, setSecondsLeft] = useState(order?.countdownSeconds ?? 0);

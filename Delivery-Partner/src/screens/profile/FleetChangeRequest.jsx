@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -23,6 +23,7 @@ const FLEET_LABEL = { veg: "Veg-Only Fleet", standard: "Standard Fleet" };
 
 export default function FleetChangeRequest() {
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
   const [selectedReason, setSelectedReason] = useState(REASONS[0]);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -55,11 +56,15 @@ export default function FleetChangeRequest() {
         reason: selectedReason,
         notes: notes.trim() || undefined,
       });
+      // RequestSubmitted.jsx reads this same query key — invalidate so it refetches the
+      // just-created request instead of serving the pre-submission cache (60s staleTime).
+      queryClient.invalidateQueries({ queryKey: ["partner", "fleet-change-requests"] });
       navigation.navigate("ProfileFleetChangeSubmitted");
     } catch (err) {
       if (err.code === "ALREADY_PENDING") {
         // Functionally the same next step either way — show the existing pending request's real
         // status rather than blocking on an error here.
+        queryClient.invalidateQueries({ queryKey: ["partner", "fleet-change-requests"] });
         navigation.navigate("ProfileFleetChangeSubmitted");
       } else {
         // Covers the "already on the requested fleet" case (VALIDATION_ERROR) — the backend's own

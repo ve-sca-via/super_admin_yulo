@@ -47,7 +47,7 @@ export default function CashDeposit() {
 
   return (
     <Screen>
-      <AppBar title="Deposit cash" />
+      <AppBar title="Deposit cash" onBack />
 
       <View className="w-full gap-4 px-6 pt-5">
         <View className="w-full gap-2 rounded-[20px] bg-card px-4 py-3.5 shadow-md shadow-black/10">

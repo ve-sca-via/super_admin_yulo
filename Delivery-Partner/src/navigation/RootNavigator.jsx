@@ -16,6 +16,7 @@ import TrainingModule from "@/screens/onboarding/TrainingModule";
 import TrainingComplete from "@/screens/onboarding/TrainingComplete";
 import Home from "@/screens/home/Home";
 import FleetBadgeInfo from "@/screens/home/FleetBadgeInfo";
+import OrdersTab from "@/screens/orders/OrdersTab";
 import IncomingOrder from "@/screens/orders/IncomingOrder";
 import RejectReasonSheet from "@/screens/orders/RejectReasonSheet";
 import SkipConfirmed from "@/screens/orders/SkipConfirmed";
@@ -96,6 +97,7 @@ export default function RootNavigator() {
         component={FleetBadgeInfo}
         options={{ presentation: "transparentModal", animation: "fade" }}
       />
+      <Stack.Screen name="OrdersTab" component={OrdersTab} />
       {/* A single route now — fleetType comes from the real order_offer payload (see
           partnerSocket.js), not from which of two routes got registered. */}
       <Stack.Screen name="OrdersIncoming" component={IncomingOrder} />

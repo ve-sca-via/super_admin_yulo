@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/Button";
+import DatePickerField, { toDateOnlyString } from "@/components/ui/DatePickerField";
 import Input from "@/components/ui/Input";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
@@ -78,7 +79,7 @@ export default function PersonalInformation() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [dob, setDob] = useState("");
+  const [dob, setDob] = useState(null);
   const [gender, setGender] = useState("male");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [aadharNumber, setAadharNumber] = useState("");
@@ -86,11 +87,14 @@ export default function PersonalInformation() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
+  const today = new Date();
+  const hundredYearsAgo = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+
   useEffect(() => {
     if (!partner) return;
     setFullName(partner.fullName ?? "");
     setEmail(partner.email ?? "");
-    setDob(partner.dateOfBirth ? new Date(partner.dateOfBirth).toDateString() : "");
+    setDob(partner.dateOfBirth ? new Date(partner.dateOfBirth) : null);
     setGender(partner.gender ?? "male");
     setEmergencyPhone(partner.emergencyPhone ?? "");
     setAadharNumber(partner.aadharNumber ?? "");
@@ -108,7 +112,7 @@ export default function PersonalInformation() {
       await client.patch("/partner/onboarding/personal", {
         fullName,
         email,
-        dateOfBirth: dob || undefined,
+        dateOfBirth: toDateOnlyString(dob),
         gender,
         emergencyPhone,
         aadharNumber,
@@ -135,14 +139,20 @@ export default function PersonalInformation() {
       <AppBar title="Personal information" />
 
       <ScrollView className="w-full px-6 pt-4" contentContainerClassName="gap-4 pb-6">
-        <View className="gap-2">
-          <Text className="font-jakarta-semibold text-[13px] text-muted-foreground">
-            Step 1 of 4 · Personal information
-          </Text>
-          <View className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-            <View className="h-full rounded-full bg-primary" style={{ width: "25%" }} />
+        {/* Only meaningful inside the linear onboarding stack — fromProfile is a standalone
+            edit that goes straight back to Profile on save, not step 2 of anything, so a
+            "Step 1 of 4" label here would misleadingly imply a multi-step flow that doesn't
+            happen. */}
+        {!fromProfile && (
+          <View className="gap-2">
+            <Text className="font-jakarta-semibold text-[13px] text-muted-foreground">
+              Step 1 of 4 · Personal information
+            </Text>
+            <View className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+              <View className="h-full rounded-full bg-primary" style={{ width: "25%" }} />
+            </View>
           </View>
-        </View>
+        )}
 
         <Field label="Full name">
           <Input value={fullName} onChangeText={setFullName} className="rounded-2xl" />
@@ -169,7 +179,13 @@ export default function PersonalInformation() {
         </Field>
 
         <Field label="Date of birth">
-          <Input value={dob} onChangeText={setDob} className="rounded-2xl" />
+          <DatePickerField
+            value={dob}
+            onChange={setDob}
+            placeholder="Select date of birth"
+            maximumDate={today}
+            minimumDate={hundredYearsAgo}
+          />
         </Field>
 
         <Field label="Gender">

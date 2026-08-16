@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/Button";
+import DatePickerField, { toDateOnlyString } from "@/components/ui/DatePickerField";
 import Input from "@/components/ui/Input";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
@@ -74,9 +75,17 @@ export default function VehicleDetailsForm() {
   const [insuranceProvider, setInsuranceProvider] = useState("");
   // Named `insuranceNumber` (not `insurancePolicyNumber`) to match the backend field.
   const [insuranceNumber, setInsuranceNumber] = useState("");
-  const [insuranceValidTill, setInsuranceValidTill] = useState("");
+  const [insuranceValidTill, setInsuranceValidTill] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
+  // Bounds for the insurance-validity picker — generous on both sides (some records predate this
+  // picker and may already show an expired policy; others may be freshly renewed for years out),
+  // but still finite so the calendar can't be driven into the same "January 112233" kind of
+  // nonsense DatePickerField.jsx guards against for out-of-range values.
+  const today = new Date();
+  const tenYearsAgo = new Date(today.getFullYear() - 10, today.getMonth(), today.getDate());
+  const twentyYearsAhead = new Date(today.getFullYear() + 20, today.getMonth(), today.getDate());
 
   useEffect(() => {
     if (!vehicle) return;
@@ -86,9 +95,7 @@ export default function VehicleDetailsForm() {
     setRcNumber(vehicle.rcNumber ?? "");
     setInsuranceProvider(vehicle.insuranceProvider ?? "");
     setInsuranceNumber(vehicle.insuranceNumber ?? "");
-    setInsuranceValidTill(
-      vehicle.insuranceValidTill ? new Date(vehicle.insuranceValidTill).toDateString() : "",
-    );
+    setInsuranceValidTill(vehicle.insuranceValidTill ? new Date(vehicle.insuranceValidTill) : null);
   }, [vehicle]);
 
   async function handleSubmit() {
@@ -107,7 +114,7 @@ export default function VehicleDetailsForm() {
           rcNumber,
           insuranceProvider,
           insuranceNumber,
-          insuranceValidTill: insuranceValidTill || undefined,
+          insuranceValidTill: toDateOnlyString(insuranceValidTill),
         },
       });
       // See PersonalInformation.jsx's identical fix — without this, Profile's VehicleDetails
@@ -130,14 +137,18 @@ export default function VehicleDetailsForm() {
       <AppBar title="Vehicle details" />
 
       <ScrollView className="w-full px-6 pt-4" contentContainerClassName="gap-4 pb-6">
-        <View className="gap-2">
-          <Text className="font-jakarta-semibold text-[13px] text-muted-foreground">
-            Step 3 of 4 · Vehicle details
-          </Text>
-          <View className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-            <View className="h-full rounded-full bg-primary" style={{ width: "75%" }} />
+        {/* See PersonalInformation.jsx's identical fix — fromProfile is a standalone edit that
+            goes straight back to Profile on save, not step 4 of anything. */}
+        {!fromProfile && (
+          <View className="gap-2">
+            <Text className="font-jakarta-semibold text-[13px] text-muted-foreground">
+              Step 3 of 4 · Vehicle details
+            </Text>
+            <View className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+              <View className="h-full rounded-full bg-primary" style={{ width: "75%" }} />
+            </View>
           </View>
-        </View>
+        )}
 
         <Field label="Vehicle type">
           <SegmentedControl options={VEHICLE_TYPES} value={type} onChange={setType} />
@@ -179,7 +190,13 @@ export default function VehicleDetailsForm() {
         </Field>
 
         <Field label="Insurance validity">
-          <Input value={insuranceValidTill} onChangeText={setInsuranceValidTill} className="rounded-2xl" />
+          <DatePickerField
+            value={insuranceValidTill}
+            onChange={setInsuranceValidTill}
+            placeholder="Select insurance validity date"
+            minimumDate={tenYearsAgo}
+            maximumDate={twentyYearsAhead}
+          />
         </Field>
 
         {profileError && (

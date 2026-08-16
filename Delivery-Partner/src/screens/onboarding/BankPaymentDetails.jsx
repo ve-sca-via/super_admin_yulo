@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -55,7 +55,12 @@ function SegmentedControl({ options, value, onChange }) {
 
 export default function BankPaymentDetails() {
   const navigation = useNavigation();
+  const { params } = useRoute();
+  // Reused as a post-approval edit form from Profile > Documents Uploaded's "Bank details" row —
+  // see PersonalInformation.jsx's identical fromProfile handling for why.
+  const fromProfile = params?.fromProfile === true;
   const { refreshOnboardingStatus } = useOnboarding();
+  const queryClient = useQueryClient();
   const { data: profile, isError: profileError, refetch: refetchProfile } = useQuery({
     queryKey: ["partner", "profile"],
     queryFn: () => client.get("/partner/profile"),
@@ -106,6 +111,15 @@ export default function BankPaymentDetails() {
         },
       });
 
+      if (fromProfile) {
+        // Standalone edit, same as PersonalInformation.jsx/VehicleDetailsForm.jsx's fromProfile
+        // handling — a re-review resubmit here would incorrectly bounce an already-approved
+        // partner into OnboardingStatus's under-review screen.
+        queryClient.invalidateQueries({ queryKey: ["partner", "profile"] });
+        navigation.goBack();
+        return;
+      }
+
       // Submit-for-review happens here, not on DocumentUploadHub.jsx — the actual onboarding
       // stack order is Personal -> Documents -> Vehicle -> Bank, so bank details (the last field
       // the backend's completeness check requires) aren't set until this screen. Calling submit
@@ -144,17 +158,21 @@ export default function BankPaymentDetails() {
 
   return (
     <Screen>
-      <AppBar title="Bank & payment details" />
+      <AppBar title="Bank & payment details" onBack={fromProfile ? true : undefined} />
 
       <ScrollView className="w-full px-6 pt-4" contentContainerClassName="gap-4 pb-6">
-        <View className="gap-2">
-          <Text className="font-jakarta-semibold text-[13px] text-muted-foreground">
-            Step 4 of 4 · Bank &amp; payment
-          </Text>
-          <View className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-            <View className="h-full rounded-full bg-primary" style={{ width: "100%" }} />
+        {/* See PersonalInformation.jsx's identical fix — fromProfile is a standalone edit, not
+            step 4 of an in-progress wizard. */}
+        {!fromProfile && (
+          <View className="gap-2">
+            <Text className="font-jakarta-semibold text-[13px] text-muted-foreground">
+              Step 4 of 4 · Bank &amp; payment
+            </Text>
+            <View className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+              <View className="h-full rounded-full bg-primary" style={{ width: "100%" }} />
+            </View>
           </View>
-        </View>
+        )}
 
         <Field label="Bank name">
           <Input value={bankName} onChangeText={setBankName} className="rounded-2xl" />
@@ -202,7 +220,7 @@ export default function BankPaymentDetails() {
 
         <View className="w-full pt-2">
           <Button disabled={submitting || profileError} onPress={handleSubmit}>
-            {submitting ? "Submitting…" : "Finish setup"}
+            {submitting ? "Saving…" : fromProfile ? "Save changes" : "Finish setup"}
           </Button>
         </View>
 
