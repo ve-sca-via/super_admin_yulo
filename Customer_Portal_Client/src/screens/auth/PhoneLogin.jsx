@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, TextInput, View } from "react-native";
 import { Phone } from "lucide-react-native";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
@@ -39,10 +39,17 @@ export default function PhoneLogin({ onNext }) {
 
   return (
     <Screen edges={["top", "bottom"]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1"
-      >
+      {/* "padding" on Android too, not just iOS. The old `undefined` relied on
+          the window itself shrinking for the keyboard (softwareKeyboardLayoutMode
+          defaults to "resize"), which is what made a bare KeyboardAvoidingView
+          enough on Android. Under the mandatory edge-to-edge of Android 15+ the
+          window no longer resizes, so `undefined` made this a no-op and the
+          bottom-pinned Continue button sat behind the keyboard — which `autoFocus`
+          below opens on mount, so it was never visible at all in a release build.
+          "padding" degrades safely if a device does still resize: RN measures the
+          keyboard against this view's own frame, so a frame that already ends
+          above the keyboard yields ~0 padding rather than double-counting it. */}
+      <KeyboardAvoidingView behavior="padding" className="flex-1">
         <View className="px-6 pt-2">
           <BackButton />
         </View>

@@ -18,7 +18,7 @@
     "lan": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE": "http://192.168.0.12:3000"
+        "EXPO_PUBLIC_API_BASE": "http://192.168.0.16:3000"
       },
       "android": {
         "buildType": "apk"

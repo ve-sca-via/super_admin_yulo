@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native";
+import { KeyboardAvoidingView, Pressable, View } from "react-native";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
 import Screen from "@/components/ui/Screen";
@@ -84,12 +84,14 @@ export default function OtpVerification({ onNext }) {
   return (
     <Screen edges={["top", "bottom"]}>
       {/* The numeric keypad is up the whole time this screen is open — without
-          this the verify button sits underneath it on iOS, which matters on the
-          retry path where the code has to be re-submitted by hand. */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1"
-      >
+          this the verify button sits underneath it, which matters on the retry
+          path where the code has to be re-submitted by hand.
+
+          "padding" on Android too, for the same reason as PhoneLogin: the old
+          `undefined` depended on the window resizing for the keyboard, which
+          edge-to-edge (mandatory on Android 15+) no longer does, leaving the
+          button behind the keypad in a release build. */}
+      <KeyboardAvoidingView behavior="padding" className="flex-1">
         <View className="px-6 pt-2">
           <BackButton />
         </View>

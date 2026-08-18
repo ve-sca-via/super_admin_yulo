@@ -28,7 +28,7 @@ import { enter } from "@/lib/motion";
 import { toRestaurantCard } from "@/lib/restaurant";
 import { formatImageUrl } from "@/api/config";
 
-const goldBackdrop = require("@/assets/home/promo-gold-backdrop.png");
+const goldBackdrop = require("@/assets/home/promo-gold-backdrop.jpg");
 const firstOrderBanner = require("@/assets/home/first-order-offer-banner.png");
 const cartRestaurant = require("@/assets/home/cart-restaurant-avatar.png");
 const dishBiryani = require("@/assets/home/dish-biryani.png");
