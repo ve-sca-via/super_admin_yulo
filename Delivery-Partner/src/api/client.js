@@ -94,6 +94,15 @@ client.interceptors.response.use(
       }
     }
 
+    if (!err.response) {
+      console.error("[DEBUG network error]", {
+        message: err.message,
+        code: err.code,
+        baseURL: err.config?.baseURL,
+        url: err.config?.url,
+      });
+    }
+
     const message = err.response?.data?.message ?? err.message ?? "Request failed";
     const apiError = new Error(message);
     apiError.code = code;

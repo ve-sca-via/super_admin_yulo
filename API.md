@@ -31,7 +31,8 @@ Frontend integration guide for all REST endpoints and WebSocket events.
 23. [Staff — Authentication](#staff--authentication)
 24. [Waiter — Tables & Orders](#waiter--tables--orders)
 25. [Kitchen — KDS](#kitchen--kds)
-26. [WebSocket Events](#websocket-events)
+26. [Partner — Authentication](#partner--authentication)
+27. [WebSocket Events](#websocket-events)
 
 ---
 
@@ -145,6 +146,7 @@ The `restaurantId` in the URL must match the staff member's assigned restaurant,
 | 409 | `DUPLICATE` | Unique constraint violated (e.g. duplicate discount code) |
 | 429 | `RATE_LIMITED` | Too many requests |
 | 500 | `INTERNAL_ERROR` | Unexpected server error |
+| 502 | `SMS_PROVIDER_ERROR` | The SMS provider failed to send or validate the OTP |
 | 500 | `UPLOAD_FAILED` | Cloudinary upload failed |
 
 ---
@@ -246,6 +248,92 @@ POST /api/auth/login
 ```
 
 A `refreshToken` HttpOnly cookie is set. Store `accessToken` in memory (not localStorage).
+
+---
+
+### Send Customer OTP
+
+```
+POST /api/auth/customer/otp/send
+```
+
+**No auth required.**
+
+**Body**
+
+```json
+{
+  "phone": "9876543210"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `phone` | string | Yes | 10-digit phone number |
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "OTP sent",
+  "data": {
+    "phone": "9876543210"
+  }
+}
+```
+
+Outside production (`NODE_ENV !== 'production'`), `data` also includes a `devOtp` field with the
+generated code, since no real SMS is sent in that mode. In production this field is always
+absent — the OTP is delivered via SMS through MessageCentral.
+
+---
+
+### Verify Customer OTP
+
+```
+POST /api/auth/customer/otp/verify
+```
+
+**No auth required.**
+
+**Body**
+
+```json
+{
+  "phone": "9876543210",
+  "code": "123456",
+  "tosAccepted": true
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `phone` | string | Yes | 10-digit phone number |
+| `code` | string | Yes | 6-digit OTP |
+| `tosAccepted` | boolean | Yes | Must be `true` |
+
+**Response `200` / `201`**
+
+```json
+{
+  "status": "success",
+  "message": "Login successful",
+  "data": {
+    "user": {
+      "_id": "664abc...",
+      "phone": "9876543210",
+      "role": "customer"
+    },
+    "accessToken": "eyJ...",
+    "isNewUser": false
+  }
+}
+```
+
+`201` + `"Account created"` + `isNewUser: true` on first verification for a phone number that has
+no existing account; `200` + `"Login successful"` + `isNewUser: false` otherwise. A `refreshToken`
+HttpOnly cookie is also set.
 
 ---
 
@@ -3222,6 +3310,95 @@ GET /api/staff/:restaurantId/kitchen/orders/:orderId
   }
 }
 ```
+
+---
+
+## Partner — Authentication
+
+Delivery partner phone/OTP login. This section covers only the OTP endpoints — the rest of the
+delivery-partner backend (onboarding, duty, orders, earnings, etc.) is not yet documented here.
+
+### Request OTP
+
+```
+POST /partner/auth/request-otp
+```
+
+**No auth required.**
+
+**Body**
+
+```json
+{
+  "phone": "9876543210"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `phone` | string | Yes | 10-digit phone number |
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "OTP sent",
+  "data": {
+    "phone": "9876543210"
+  }
+}
+```
+
+Outside production, `data` also includes a `devOtp` field (no real SMS in that mode) — same
+convention as `POST /api/auth/customer/otp/send`.
+
+---
+
+### Verify OTP
+
+```
+POST /partner/auth/verify-otp
+```
+
+**No auth required.**
+
+**Body**
+
+```json
+{
+  "phone": "9876543210",
+  "otp": "123456"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `phone` | string | Yes | 10-digit phone number |
+| `otp` | string | Yes | 6-digit OTP |
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "Login successful",
+  "data": {
+    "partner": {
+      "_id": "664abc...",
+      "phone": "9876543210",
+      "verificationStatus": "pending_documents",
+      "status": "inactive"
+    },
+    "accessToken": "eyJ...",
+    "refreshToken": "eyJ..."
+  }
+}
+```
+
+A brand-new phone number auto-creates a partner record (`verificationStatus: "pending_documents"`,
+`status: "inactive"`) — full onboarding (name, vehicle, bank, documents) happens in later, separate
+steps. `401 ACCOUNT_SUSPENDED` if the partner's `status` is `"suspended"`.
 
 ---
 

@@ -1,3 +1,6 @@
 node_modules/
 .env
 dist/
+Yulo Stores*.json
+*.postman_collection*.json
+prompt.md
