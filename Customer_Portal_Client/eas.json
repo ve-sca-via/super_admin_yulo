@@ -35,6 +35,17 @@
       }
     },
 
+    "cloud": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_BASE": "https://yulo-backend-f4juo.ondigitalocean.app",
+        "EXPO_PUBLIC_FEATURE_LIVE_TRACKING": "off"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+
     "production-apk": {
       "extends": "production",
       "distribution": "internal",
