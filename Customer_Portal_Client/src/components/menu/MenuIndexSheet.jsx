@@ -99,17 +99,21 @@ export default function MenuIndexSheet({
               accessibilityLabel="Search in menu"
             />
 
-        <View className="mr-3 h-6 w-px bg-border" />
+        {voice.available ? (
+          <>
+            <View className="mr-3 h-6 w-px bg-border" />
 
-        <PressableScale
-          hitSlop={8}
-          scale={PRESS_SCALE.tight}
-          accessibilityRole="button"
-          accessibilityLabel={voice.listening ? "Stop voice search" : "Voice search"}
-          onPress={voice.toggle}
-        >
-          <Mic size={22} color={voice.listening ? LISTENING_COLOR : accent.icon} />
-        </PressableScale>
+            <PressableScale
+              hitSlop={8}
+              scale={PRESS_SCALE.tight}
+              accessibilityRole="button"
+              accessibilityLabel={voice.listening ? "Stop voice search" : "Voice search"}
+              onPress={voice.toggle}
+            >
+              <Mic size={22} color={voice.listening ? LISTENING_COLOR : accent.icon} />
+            </PressableScale>
+          </>
+        ) : null}
       </View>
 
       {voice.error ? (

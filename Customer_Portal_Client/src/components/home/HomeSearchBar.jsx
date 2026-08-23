@@ -66,6 +66,9 @@ export default function HomeSearchBar({
   onChangeText,
   onSubmit,
   onVoiceSearch,
+  // See SearchTopBar: the mic is removed rather than left inert when the
+  // recognizer is not reachable in this client.
+  showVoice = true,
   vegOnly = false,
   onPressVeg,
   onPressField,
@@ -124,11 +127,15 @@ export default function HomeSearchBar({
           />
         )}
 
-        <View className="mx-3 h-6 w-px bg-border" />
+        {showVoice ? (
+          <>
+            <View className="mx-3 h-6 w-px bg-border" />
 
-        <Pressable onPress={onVoiceSearch} hitSlop={8} accessibilityRole="button" accessibilityLabel="Voice search">
-          <Mic size={18} color="#FF5E00" />
-        </Pressable>
+            <Pressable onPress={onVoiceSearch} hitSlop={8} accessibilityRole="button" accessibilityLabel="Voice search">
+              <Mic size={18} color="#FF5E00" />
+            </Pressable>
+          </>
+        ) : null}
       </View>
 
       <Pressable

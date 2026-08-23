@@ -1,4 +1,5 @@
 import { ScrollView, View } from "react-native";
+import { FlaskConical } from "lucide-react-native";
 
 import Screen from "@/components/ui/Screen";
 import PageHeader from "@/components/customer/PageHeader";
@@ -23,6 +24,13 @@ const ROWS = [
 ];
 
 export default function Settings({ navigation }) {
+  // Dev builds get one extra row at the bottom, past the real settings, so it
+  // never displaces a customer-facing one while it is there. The route it
+  // targets is only registered in development too — see RootNavigator.
+  const rows = __DEV__
+    ? [...ROWS, { id: "flags", label: "Feature flags (dev)", route: "FeatureFlags", icon: FlaskConical }]
+    : ROWS;
+
   const open = (row) =>
     row.route
       ? navigation.navigate(row.route)
@@ -37,8 +45,13 @@ export default function Settings({ navigation }) {
         <PageHeader title="Settings" />
 
         <View className="mt-6 gap-4 px-5">
-          {ROWS.map((row) => (
-            <SettingsRow key={row.id} label={row.label} onPress={() => open(row)} />
+          {rows.map((row) => (
+            <SettingsRow
+              key={row.id}
+              label={row.label}
+              icon={row.icon}
+              onPress={() => open(row)}
+            />
           ))}
         </View>
       </ScrollView>

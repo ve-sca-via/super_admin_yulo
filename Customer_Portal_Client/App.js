@@ -17,6 +17,7 @@ import {
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
+import { FeatureFlagsProvider } from "@/context/FeatureFlagsContext";
 import { CustomerAuthProvider } from "@/context/CustomerAuthContext";
 import { FeedProvider } from "@/context/FeedContext";
 import RootNavigator from "@/navigation/RootNavigator";
@@ -59,16 +60,18 @@ export default function App() {
         {/* Inside the provider, so the fallback screen it renders can still
             read the safe-area insets it needs to keep clear of the notch. */}
         <ErrorBoundary>
-          <QueryClientProvider client={queryClient}>
-            <CustomerAuthProvider>
-              <FeedProvider>
-                <NavigationContainer>
-                  <StatusBar style="dark" />
-                  <RootNavigator />
-                </NavigationContainer>
-              </FeedProvider>
-            </CustomerAuthProvider>
-          </QueryClientProvider>
+          <FeatureFlagsProvider>
+            <QueryClientProvider client={queryClient}>
+              <CustomerAuthProvider>
+                <FeedProvider>
+                  <NavigationContainer>
+                    <StatusBar style="dark" />
+                    <RootNavigator />
+                  </NavigationContainer>
+                </FeedProvider>
+              </CustomerAuthProvider>
+            </QueryClientProvider>
+          </FeatureFlagsProvider>
         </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>

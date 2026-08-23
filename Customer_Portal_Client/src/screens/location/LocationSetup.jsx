@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, TextInput, View } from "react-native";
-import * as Location from "expo-location";
 import { MapPin, Search } from "lucide-react-native";
 
+import { Location } from "@/lib/nativeModules";
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { useFeature } from "@/context/FeatureFlagsContext";
+import { explainFeature } from "@/lib/features";
 import Screen from "@/components/ui/Screen";
 import Text from "@/components/ui/Text";
 import Button from "@/components/ui/Button";
@@ -51,6 +53,12 @@ export default function LocationSetup({ onNext }) {
   const [query, setQuery] = useState(deliveryLocation?.label ?? "");
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
+  // Typing an address is a complete path through this screen on its own — the
+  // GPS button is a shortcut, not a requirement. So when the module is gone or
+  // switched off, the button goes and the field stays, rather than the screen
+  // becoming a dead end.
+  const locationFeature = useFeature("deviceLocation");
+  const canUseGps = !!locationFeature.enabled;
 
   // Once there's an address in the field, that's what the customer is trying to
   // submit — the buttons swap below so the primary one commits it instead of
@@ -59,6 +67,11 @@ export default function LocationSetup({ onNext }) {
   const hasTypedAddress = query.trim().length > 0;
 
   const handleUseCurrentLocation = async () => {
+    if (!canUseGps) {
+      setError(explainFeature(locationFeature));
+      return;
+    }
+
     setError("");
     setLocating(true);
     try {
@@ -131,7 +144,7 @@ export default function LocationSetup({ onNext }) {
   // it, and auto-firing GPS here would silently overwrite/re-navigate away
   // from whatever the user is about to type.
   useEffect(() => {
-    if (!deliveryLocation) handleUseCurrentLocation();
+    if (canUseGps && !deliveryLocation) handleUseCurrentLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -197,11 +210,13 @@ export default function LocationSetup({ onNext }) {
           {hasTypedAddress ? (
             <>
               <Button onPress={handleManualSubmit}>Use this address</Button>
-              <Button variant="secondary" disabled={locating} onPress={handleUseCurrentLocation}>
-                {locating ? "Locating..." : "Use current location"}
-              </Button>
+              {canUseGps ? (
+                <Button variant="secondary" disabled={locating} onPress={handleUseCurrentLocation}>
+                  {locating ? "Locating..." : "Use current location"}
+                </Button>
+              ) : null}
             </>
-          ) : (
+          ) : canUseGps ? (
             <>
               <Button disabled={locating} onPress={handleUseCurrentLocation}>
                 {locating ? "Locating..." : "Use current location"}
@@ -210,6 +225,8 @@ export default function LocationSetup({ onNext }) {
                 Enter address manually
               </Button>
             </>
+          ) : (
+            <Button onPress={() => inputRef.current?.focus()}>Enter address manually</Button>
           )}
         </View>
       </KeyboardAvoidingView>

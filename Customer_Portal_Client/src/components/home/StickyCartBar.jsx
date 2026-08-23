@@ -1,8 +1,8 @@
-import { Image, StyleSheet, View } from "react-native";
-import { BlurView } from "expo-blur";
+import { Image, View } from "react-native";
 import { ChevronRight, X } from "lucide-react-native";
 import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 
+import BlurBackdrop from "@/components/ui/BlurBackdrop";
 import Button from "@/components/ui/Button";
 import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
@@ -51,8 +51,7 @@ export default function StickyCartBar({
             enough to keep the name and "View cart" readable, so the strip of
             content directly behind it is blurred instead. `overflow-hidden`
             above clips the blur to the pill's rounded shape. */}
-        <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFillObject} />
-        <View className="absolute inset-0 bg-card/70" />
+        <BlurBackdrop />
 
         <PressableScale
           onPress={onViewMenu}

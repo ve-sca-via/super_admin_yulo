@@ -1,8 +1,8 @@
-import { StyleSheet, View } from "react-native";
-import { BlurView } from "expo-blur";
+import { View } from "react-native";
 import { Bike, ChevronRight, Clock } from "lucide-react-native";
 import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 
+import BlurBackdrop from "@/components/ui/BlurBackdrop";
 import PressableScale from "@/components/ui/PressableScale";
 import Text from "@/components/ui/Text";
 import { PRESS_SCALE, enter, exit } from "@/lib/motion";
@@ -49,8 +49,7 @@ export default function ActiveOrderBar({
         accessibilityLabel={`Track your order from ${restaurantName ?? "your restaurant"}`}
         className="flex-row items-center overflow-hidden rounded-full border border-border px-[13.5px] py-[10.5px]"
       >
-        <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFillObject} />
-        <View className="absolute inset-0 bg-card/70" />
+        <BlurBackdrop />
 
         <View
           style={{ backgroundColor: accent.icon }}

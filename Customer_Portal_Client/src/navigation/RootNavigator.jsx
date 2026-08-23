@@ -33,6 +33,7 @@ import Settings from "@/screens/profile/Settings";
 import VegFleetPreference from "@/screens/profile/VegFleetPreference";
 import HelpSupport from "@/screens/support/HelpSupport";
 import SupportThread from "@/screens/support/SupportThread";
+import FeatureFlagsScreen from "@/screens/dev/FeatureFlags";
 
 const Stack = createNativeStackNavigator();
 
@@ -183,6 +184,12 @@ export default function RootNavigator() {
 
           {/* Where the tracking screens send a customer who needs a person. */}
           <Stack.Screen name="Support" component={SupportThread} />
+
+          {/* Registered only in development, so the flag panel is not merely
+              hidden in a release build but absent from the navigator — there is
+              no route name a deep link or a stale navigation state could use to
+              reach it. */}
+          {__DEV__ ? <Stack.Screen name="FeatureFlags" component={FeatureFlagsScreen} /> : null}
 
           {/* The remaining rows on the settings and profile lists name screens that
               haven't been built. One parameterised placeholder rather than a route

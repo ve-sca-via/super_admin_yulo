@@ -115,7 +115,7 @@ export default function Search({ navigation, route }) {
   // speech can land is the screen that actually owns a query.
   const autoStartedRef = useRef(false);
   useEffect(() => {
-    if (route?.params?.voiceAutoStart && !autoStartedRef.current) {
+    if (route?.params?.voiceAutoStart && voice.available && !autoStartedRef.current) {
       autoStartedRef.current = true;
       voice.start();
     }
@@ -133,6 +133,7 @@ export default function Search({ navigation, route }) {
       )}
 
       <SearchTopBar
+        showVoice={voice.available}
         value={query}
         onChangeText={setQuery}
         onSubmit={() => submitSearch(query)}

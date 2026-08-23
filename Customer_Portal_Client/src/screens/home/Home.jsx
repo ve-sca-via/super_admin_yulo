@@ -3,6 +3,7 @@ import { Image, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { useFeatureEnabled } from "@/context/FeatureFlagsContext";
 import { useFeed } from "@/context/FeedContext";
 import { useHomeFeed } from "@/hooks/useHomeFeed";
 import { useActiveOrder, useOrderSocket, useRestaurantNames } from "@/hooks/useOrders";
@@ -66,6 +67,10 @@ function RestaurantRow({ data, ratingTone, onSelect }) {
 export default function Home({ navigation }) {
   const { gutter } = useResponsive();
   const { deliveryLocation } = useCustomerAuth();
+  // The field here is a doorway — its mic hands off to the search screen, which
+  // is where the recognizer actually runs. Both have to agree about whether the
+  // mic is shown at all, or this one opens a screen with nothing to listen with.
+  const voiceSearchEnabled = useFeatureEnabled("voiceSearch");
   // Veg mode, the cart and the favourite hearts are shared with the search
   // screens, so they live in FeedContext rather than here — see its header.
   const { cart, clearCart, isFavourite, toggleFavourite, vegOnly, vegScope, applyVegScope } =
@@ -215,6 +220,7 @@ export default function Home({ navigation }) {
 
           <View style={{ paddingHorizontal: gutter }} className="mt-3">
             <HomeSearchBar
+              showVoice={voiceSearchEnabled}
               vegOnly={vegOnly}
               onPressVeg={openVegPopover}
               onPressField={() => navigation?.navigate("Search")}

@@ -15,6 +15,9 @@ export default function SearchTopBar({
   onSubmit,
   onVoiceSearch,
   listening = false,
+  // Hidden, not disabled, when the recognizer is unreachable (Expo Go). A mic
+  // that is present but inert is the exact ambiguity this layer exists to stop.
+  showVoice = true,
   onPressField,
   vegOnly = false,
   autoFocus = true,
@@ -63,16 +66,20 @@ export default function SearchTopBar({
           />
         )}
 
-        <View className="mx-3 h-6 w-px bg-border" />
+        {showVoice ? (
+          <>
+            <View className="mx-3 h-6 w-px bg-border" />
 
-        <Pressable
-          onPress={onVoiceSearch}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={listening ? "Stop voice search" : "Voice search"}
-        >
-          <Mic size={20} color={listening ? LISTENING_COLOR : accent.icon} />
-        </Pressable>
+            <Pressable
+              onPress={onVoiceSearch}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={listening ? "Stop voice search" : "Voice search"}
+            >
+              <Mic size={20} color={listening ? LISTENING_COLOR : accent.icon} />
+            </Pressable>
+          </>
+        ) : null}
       </View>
     </View>
   );

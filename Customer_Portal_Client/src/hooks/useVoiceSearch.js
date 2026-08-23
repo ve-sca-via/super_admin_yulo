@@ -1,30 +1,48 @@
 import { useCallback, useRef, useState } from "react";
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from "expo-speech-recognition";
 
-// Every mic button in the app (home, the search screen, the menu index sheet)
-// wraps the platform recognizer the same way: ask for the mic once, stream
-// interim transcripts back to whatever query state the caller owns, and hand
-// back the final phrase when the speaker stops. `no-speech` is swallowed
-// rather than surfaced — tapping the mic and staying quiet isn't an error a
-// customer needs telling about, it's just a search they changed their mind on.
+import { SpeechRecognition } from "@/lib/nativeModules";
+import { useFeature } from "@/context/FeatureFlagsContext";
+import { explainFeature } from "@/lib/features";
+
+// Every mic button in the app (the search screen, the menu index sheet) wraps
+// the platform recognizer the same way: ask for the mic once, stream interim
+// transcripts back to whatever query state the caller owns, and hand back the
+// final phrase when the speaker stops. `no-speech` is swallowed rather than
+// surfaced — tapping the mic and staying quiet isn't an error a customer needs
+// telling about, it's just a search they changed their mind on.
+//
+// `expo-speech-recognition` is not part of the Expo SDK, so it is not in the
+// Expo Go binary. It used to be imported at the top of this file, where its
+// `requireNativeModule()` call throws on import — and because the search screen
+// is reachable from the root navigator, that throw happened while the bundle was
+// still being evaluated and took the entire app down before the first frame.
+// The module is now resolved through the optional-module registry, so its
+// absence is a `null` this hook reports as `available: false`.
+
+// Called unconditionally below so the hook count never changes between renders.
+// `SpeechRecognition` is resolved once at module scope, so which of these two we
+// use is fixed for the lifetime of the bundle — React never sees the order move.
+const noopSubscribe = () => {};
+const useRecognitionEvent = SpeechRecognition?.useSpeechRecognitionEvent ?? noopSubscribe;
+
 export default function useVoiceSearch({ onResult, lang = "en-US" } = {}) {
+  const feature = useFeature("voiceSearch");
+  const available = !!feature?.enabled;
+
   const [listening, setListening] = useState(false);
   const [error, setError] = useState(null);
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
 
-  useSpeechRecognitionEvent("start", () => setListening(true));
-  useSpeechRecognitionEvent("end", () => setListening(false));
+  useRecognitionEvent("start", () => setListening(true));
+  useRecognitionEvent("end", () => setListening(false));
 
-  useSpeechRecognitionEvent("result", (event) => {
+  useRecognitionEvent("result", (event) => {
     const transcript = event.results?.[0]?.transcript;
     if (transcript) onResultRef.current?.(transcript, { isFinal: event.isFinal });
   });
 
-  useSpeechRecognitionEvent("error", (event) => {
+  useRecognitionEvent("error", (event) => {
     setListening(false);
     if (event.error === "no-speech") return;
     setError("Couldn't hear that — try again.");
@@ -38,23 +56,36 @@ export default function useVoiceSearch({ onResult, lang = "en-US" } = {}) {
   const start = useCallback(async () => {
     setError(null);
 
+    // Callers are expected to hide the mic when `available` is false, but a
+    // stale prop or an auto-start param can still reach here. Say why rather
+    // than doing nothing, which is the failure mode this whole layer exists to
+    // stop reproducing.
+    if (!available) {
+      setError(explainFeature(feature));
+      return;
+    }
+
     try {
-      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      const permission = await SpeechRecognition.ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!permission.granted) {
         setError("Microphone access is needed for voice search.");
         return;
       }
 
-      ExpoSpeechRecognitionModule.start({ lang, interimResults: true, continuous: false });
+      SpeechRecognition.ExpoSpeechRecognitionModule.start({
+        lang,
+        interimResults: true,
+        continuous: false,
+      });
     } catch {
       setListening(false);
       setError("Voice search isn't available on this device. Type your search instead.");
     }
-  }, [lang]);
+  }, [available, feature, lang]);
 
   const stop = useCallback(() => {
     try {
-      ExpoSpeechRecognitionModule.stop();
+      SpeechRecognition?.ExpoSpeechRecognitionModule.stop();
     } catch {
       // Stopping a recognizer that never started isn't worth surfacing.
     }
@@ -66,5 +97,5 @@ export default function useVoiceSearch({ onResult, lang = "en-US" } = {}) {
     else start();
   }, [listening, start, stop]);
 
-  return { listening, error, start, stop, toggle };
+  return { available, feature, listening, error, start, stop, toggle };
 }

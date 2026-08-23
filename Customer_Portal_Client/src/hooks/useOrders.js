@@ -5,6 +5,7 @@ import { io } from "socket.io-client";
 import client, { getAccessToken } from "@/api/client";
 import { API_BASE } from "@/api/config";
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { useFeatureEnabled } from "@/context/FeatureFlagsContext";
 
 // `GET /orders` → { orders, total, page }. `select` unwraps it so callers get the
 // array they actually render — passing the envelope through was crashing the
@@ -139,9 +140,15 @@ export function useVegFleetActions(orderId) {
 export function useOrderSocket(orderId) {
   const queryClient = useQueryClient();
   const { sessionReady } = useCustomerAuth();
+  // Pure JS, but it needs a reachable socket server. Pointed at a laptop that
+  // is only serving REST, the client retries the handshake indefinitely and
+  // fills the log with connection errors that look like an app bug. Switching
+  // this off in the dev flag panel leaves the rest of the order flow — which is
+  // all plain HTTP — testable on its own.
+  const liveTracking = useFeatureEnabled("liveTracking");
 
   useEffect(() => {
-    if (!orderId || !sessionReady) return;
+    if (!orderId || !sessionReady || !liveTracking) return;
 
     const token = getAccessToken();
     if (!token) return;
@@ -197,7 +204,7 @@ export function useOrderSocket(orderId) {
       socket.removeAllListeners();
       socket.disconnect();
     };
-  }, [orderId, queryClient, sessionReady]);
+  }, [orderId, queryClient, sessionReady, liveTracking]);
 }
 
 export function useSubmitReview() {
